@@ -27,7 +27,10 @@ def agent_portrayal(agent):
         AgentType.BOT: "x",
     }
     # TODO give these directed edges. need zorder
-    return {"color": node_color_dict[agent.state], "marker": node_shape_dict[agent.type], "size": 25}
+    return {"color": node_color_dict[agent.state],
+            "marker": node_shape_dict[agent.type],
+            # "zorder": 1,  # TODO confirm what this does - outward or inward
+            "size": 25}
 
 
 def get_neutral_progressive_ratio(model):
@@ -37,6 +40,7 @@ def get_neutral_progressive_ratio(model):
     progressive_text = str(number_progressive(model))
     neutral_text = str(number_neutral(model))
 
+    # TODO mel to add graph output
     return solara.Markdown(
         f"Neutral/Progressive Ratio: {ratio_text}<br>"
         f"Progressive Count: {progressive_text}<br>"

@@ -69,7 +69,7 @@ class TikTokEchoChamber(Model):
         super().__init__(seed=seed)
         self.num_nodes = num_nodes
         prob = avg_node_degree / self.num_nodes # this is for the probability for an edge to be connected
-        # TODO give these directed edges. need zorder
+        # TODO give these directed edges. need zorder. directed=True causes error. Don't think it's possible.
         self.G = nx.erdos_renyi_graph(n=self.num_nodes, p=prob)
         self.grid = mesa.space.NetworkGrid(self.G)
 
