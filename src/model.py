@@ -91,8 +91,10 @@ class TikTokEchoChamber(Model):
         )
 
         # Create agents as human and neutral first
+        idCounter = 0
         for node in self.G.nodes():
             a = TikTokAgent(
+                idCounter,
                 self,
                 AgentType.HUMAN,
                 State.NEUTRAL,
@@ -101,17 +103,15 @@ class TikTokEchoChamber(Model):
                 self.recovery_chance,
                 self.gain_resistance_chance,
             )
-
-            # Add the agent to the node
+            idCounter += 1
+            # Attach the agent to the node
             self.grid.place_agent(a, node)
 
-        # Make some conservative bot nodes.
+        # Make equal count conservative and progressive bot nodes.
         infected_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
         for a in self.grid.get_cell_list_contents(infected_nodes):
             a.type = AgentType.BOT
             a.state = State.CONSERVATIVE
-
-        # Make some progressive bot nodes.
         progressive_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
         for a in self.grid.get_cell_list_contents(progressive_nodes):
             a.type = AgentType.BOT
