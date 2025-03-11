@@ -4,7 +4,7 @@ import solara
 from model import (
     State,
     TikTokEchoChamber,
-    number_infected,
+    number_conservative, number_progressive, number_neutral,
 )
 from mesa.visualization import (
     Slider,
@@ -13,23 +13,39 @@ from mesa.visualization import (
     make_space_component,
 )
 
+from agents import AgentType
+
 
 def agent_portrayal(agent):
     node_color_dict = {
-        State.INFECTED: "tab:red",
-        State.SUSCEPTIBLE: "tab:green",
-        State.RESISTANT: "tab:gray",
+        State.CONSERVATIVE: "tab:red",
+        State.PROGRESSIVE: "tab:blue",
+        State.NEUTRAL: "tab:gray",
     }
-    return {"color": node_color_dict[agent.state], "size": 10}
+    node_shape_dict = {
+        AgentType.HUMAN: "o",
+        AgentType.BOT: "x",
+    }
+    # TODO give these directed edges. need zorder
+    return {"color": node_color_dict[agent.state],
+            "marker": node_shape_dict[agent.type],
+            # "zorder": 1,  # TODO confirm what this does - outward or inward
+            "size": 25}
 
 
-def get_resistant_susceptible_ratio(model):
-    ratio = model.resistant_susceptible_ratio()
+def get_neutral_progressive_ratio(model):
+    ratio = model.neutral_progressive_ratio()
     ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
-    infected_text = str(number_infected(model))
+    infected_text = str(number_conservative(model))
+    progressive_text = str(number_progressive(model))
+    neutral_text = str(number_neutral(model))
 
+    # TODO mel to add graph output
     return solara.Markdown(
-        f"Resistant/Susceptible Ratio: {ratio_text}<br>Infected Remaining: {infected_text}"
+        f"Neutral/Progressive Ratio: {ratio_text}<br>"
+        f"Progressive Count: {progressive_text}<br>"
+        f"Conservative Count: {infected_text}<br>"
+        f"Neutral Count: {neutral_text}"
     )
 
 
@@ -81,9 +97,16 @@ model_params = {
         max=1.0,
         step=0.1,
     ),
-    "gain_resistance_chance": Slider(
-        label="Gain Resistance Chance",
-        value=0.5,
+    "density": Slider(
+        label="Density",
+        value=0.8,
+        min=0.0,
+        max=1.0,
+        step=0.1,
+    ),
+    "homophily": Slider(
+        label="Homophily",
+        value=0.4,
         min=0.0,
         max=1.0,
         step=0.1,
@@ -99,7 +122,7 @@ def post_process_lineplot(ax):
 
 SpacePlot = make_space_component(agent_portrayal)
 StatePlot = make_plot_component(
-    {"Infected": "tab:red", "Susceptible": "tab:green", "Resistant": "tab:gray"},
+    {"Conservative": "tab:red", "Progressive": "tab:blue", "Neutral": "tab:gray"},
     post_process=post_process_lineplot,
 )
 
@@ -110,9 +133,9 @@ page = SolaraViz(
     components=[
         SpacePlot,
         StatePlot,
-        get_resistant_susceptible_ratio,
+        get_neutral_progressive_ratio,
     ],
     model_params=model_params,
-    name="Virus Model",
+    name="TikTok Echo Chamber Model",
 )
 page  # noqa

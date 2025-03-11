@@ -3,23 +3,35 @@ import math
 import networkx as nx
 import mesa
 from mesa import Model
-from agents import State, TikTokAgent
+from agents import State, TikTokAgent, AgentType
 
 
 def number_state(model, state):
     return sum(1 for a in model.grid.get_all_cell_contents() if a.state is state)
 
 
-def number_infected(model):
-    return number_state(model, State.INFECTED)
+def number_type(model, type):
+    return sum(1 for a in model.grid.get_all_cell_contents() if a.type is type)
 
 
-def number_susceptible(model):
-    return number_state(model, State.SUSCEPTIBLE)
+def number_human(model):
+    return number_type(model, AgentType.HUMAN)
 
 
-def number_resistant(model):
-    return number_state(model, State.RESISTANT)
+def number_bot(model):
+    return number_type(model, AgentType.BOT)
+
+
+def number_conservative(model):
+    return number_state(model, State.CONSERVATIVE)
+
+
+def number_progressive(model):
+    return number_state(model, State.PROGRESSIVE)
+
+
+def number_neutral(model):
+    return number_state(model, State.NEUTRAL)
 
 
 class TikTokEchoChamber(Model):
@@ -56,7 +68,8 @@ class TikTokEchoChamber(Model):
         """
         super().__init__(seed=seed)
         self.num_nodes = num_nodes
-        prob = avg_node_degree / self.num_nodes
+        prob = avg_node_degree / self.num_nodes # this is for the probability for an edge to be connected
+        # TODO give these directed edges. need zorder. directed=True causes error. Don't think it's possible.
         self.G = nx.erdos_renyi_graph(n=self.num_nodes, p=prob)
         self.grid = mesa.space.NetworkGrid(self.G)
 
@@ -70,40 +83,46 @@ class TikTokEchoChamber(Model):
 
         self.datacollector = mesa.DataCollector(
             {
-                "Infected": number_infected,
-                "Susceptible": number_susceptible,
-                "Resistant": number_resistant,
-                "R over S": self.resistant_susceptible_ratio,
+                "Conservative": number_conservative,
+                "Progressive": number_progressive,
+                "Neutral": number_neutral,
+                "N over P": self.neutral_progressive_ratio,
             }
         )
 
-        # Create agents
+        # Create agents as human and neutral first
+        idCounter = 0
         for node in self.G.nodes():
             a = TikTokAgent(
+                idCounter,
                 self,
-                State.SUSCEPTIBLE,
+                AgentType.HUMAN,
+                State.NEUTRAL,
                 self.virus_spread_chance,
                 self.virus_check_frequency,
                 self.recovery_chance,
                 self.gain_resistance_chance,
             )
-
-            # Add the agent to the node
+            idCounter += 1
+            # Attach the agent to the node
             self.grid.place_agent(a, node)
 
-        # Infect some nodes
+        # Make equal count conservative and progressive bot nodes.
         infected_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
         for a in self.grid.get_cell_list_contents(infected_nodes):
-            a.state = State.INFECTED
+            a.type = AgentType.BOT
+            a.state = State.CONSERVATIVE
+        progressive_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
+        for a in self.grid.get_cell_list_contents(progressive_nodes):
+            a.type = AgentType.BOT
+            a.state = State.PROGRESSIVE
 
         self.running = True
         self.datacollector.collect(self)
 
-    def resistant_susceptible_ratio(self):
+    def neutral_progressive_ratio(self):
         try:
-            return number_state(self, State.RESISTANT) / number_state(
-                self, State.SUSCEPTIBLE
-            )
+            return number_state(self, State.NEUTRAL) / number_state(self, State.PROGRESSIVE)
         except ZeroDivisionError:
             return math.inf
 
@@ -111,3 +130,5 @@ class TikTokEchoChamber(Model):
         self.agents.shuffle_do("step")
         # collect data
         self.datacollector.collect(self)
+        if number_neutral(self) == 0:
+            self.running = False
