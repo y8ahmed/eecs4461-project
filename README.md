@@ -18,6 +18,11 @@ Clone the repo
 In root eecs4461-project directory, **create a venv** - commands vary per OS so review the linked guides
 - Install [python3.12](https://www.python.org/downloads/release/python-3128/)
 - Install [venv](https://realpython.com/python-virtual-environments-a-primer/)
+
+
+Go into the src directory
+`cd src`
+
 - Create venv
 - Activate venv
 
@@ -25,4 +30,4 @@ Install packages based on requirements.txt
 `pip install -r requirements.txt`
 
 Run solara
-`solara run src/app.py`
+`solara run app.py`
