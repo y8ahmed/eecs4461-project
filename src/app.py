@@ -243,6 +243,6 @@ page = SolaraViz(
         StatsRow,
     ],
     model_params=model_params,
-    name=" TikTok Echo Chamber Model ",
+    name=" TikTok Echo Chamber  Model ",
 )
 page  # noqa
