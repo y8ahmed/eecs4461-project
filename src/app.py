@@ -126,6 +126,7 @@ StatePlot = make_plot_component(
     post_process=post_process_lineplot,
 )
 
+
 model1 = TikTokEchoChamber()
 
 page = SolaraViz(
