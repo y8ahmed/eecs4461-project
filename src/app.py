@@ -1,5 +1,6 @@
 import math
 import solara
+import networkx as nx
 
 from model import (
     State,
@@ -26,10 +27,8 @@ def agent_portrayal(agent):
         AgentType.HUMAN: "o",
         AgentType.BOT: "x",
     }
-    # TODO give these directed edges. need zorder
     return {"color": node_color_dict[agent.state],
             "marker": node_shape_dict[agent.type],
-            # "zorder": 1,  # TODO confirm what this does - outward or inward
             "size": 25}
 
 
@@ -60,8 +59,144 @@ def get_interactions(model):
         f"Neutral/Progressive Ratio: {ratio_text}<br>"
         f"Progressive Count: {progressive_text}<br>"
         f"Conservative Count: {infected_text}"
-    )
+    )people
 
+
+def identify_clusters(model):
+
+    conservative_graph = nx.Graph()
+    progressive_graph = nx.Graph()
+    neutral_graph = nx.Graph()
+
+
+    for node in model.G.nodes():
+        agent = model.grid.get_cell_list_contents([node])[0]
+        if agent.state == State.CONSERVATIVE:
+            conservative_graph.add_node(node)
+        elif agent.state == State.PROGRESSIVE:
+            progressive_graph.add_node(node)
+        elif agent.state == State.NEUTRAL:
+            neutral_graph.add_node(node)
+
+
+    for edge in model.G.edges():
+        u, v = edge
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.state == agent_v.state:
+            if agent_u.state == State.CONSERVATIVE:
+                conservative_graph.add_edge(u, v)
+            elif agent_u.state == State.PROGRESSIVE:
+                progressive_graph.add_edge(u, v)
+            elif agent_u.state == State.NEUTRAL:
+                neutral_graph.add_edge(u, v)
+
+
+    conservative_clusters = list(nx.connected_components(conservative_graph))
+    progressive_clusters = list(nx.connected_components(progressive_graph))
+    neutral_clusters = list(nx.connected_components(neutral_graph))
+
+
+    all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
+
+    return all_clusters
+
+
+def count_cross_cluster_interactions(model):
+
+    cross_interactions = 0
+    for edge in model.G.edges():
+        u, v = edge
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.state != agent_v.state:
+            cross_interactions += 1
+
+    return cross_interactions
+
+
+def get_agent_stats(model):
+
+    # Get basic state counts
+    conservative_count = number_conservative(model)
+    progressive_count = number_progressive(model)
+    neutral_count = number_neutral(model)
+
+    try:
+        np_ratio = neutral_count / progressive_count
+        np_ratio_text = f"{np_ratio:.2f}"
+    except ZeroDivisionError:
+        np_ratio_text = "∞"
+
+    steps = model.steps
+
+
+    markdown_text = f"""
+    ## Agent Statistics
+
+    - Conservative: {conservative_count}
+    - Progressive: {progressive_count}
+    - Neutral: {neutral_count}
+    - Neutral/Progressive Ratio: {np_ratio_text}
+    - Simulation Steps: {steps}
+    """
+
+    return solara.Markdown(markdown_text)
+
+
+def get_cluster_stats(model):
+
+    # Identify and analyze clusters
+    clusters = identify_clusters(model)
+    num_clusters = len(clusters)
+    total_agents = model.num_nodes
+
+    cluster_ratio = num_clusters / total_agents if total_agents > 0 else 0
+
+
+    if num_clusters > 0:
+        total_size = sum(len(cluster) for cluster in clusters)
+        avg_cluster_size = total_size / num_clusters
+    else:
+        avg_cluster_size = 0
+
+
+    cross_interactions = count_cross_cluster_interactions(model)
+
+
+    markdown_text = f"""
+    ## Cluster Analysis
+
+    - Number of Clusters: {num_clusters}
+    - Clusters/Agents Ratio: {cluster_ratio:.3f}
+    - Average Cluster Size: {avg_cluster_size:.2f}
+    - Cross-Cluster Interactions: {cross_interactions}
+    """
+
+    return solara.Markdown(markdown_text)
+
+
+def StatsRow(model):
+    return solara.Row(children=[
+        solara.Column(children=[get_agent_stats(model)], style={"width": "50%"}),
+        solara.Column(children=[get_cluster_stats(model)], style={"width": "50%"})
+    ], style={"width": "200%"})
+
+
+def post_process_lineplot(ax):
+    ax.set_ylim(ymin=0)
+    ax.set_ylabel("# people")
+    ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+
+
+
+SpacePlot = make_space_component(agent_portrayal)
+StatePlot = make_plot_component(
+    {"Conservative": "tab:red", "Progressive": "tab:blue", "Neutral": "tab:gray"},
+    post_process=post_process_lineplot,
+)
 
 model_params = {
     "seed": {
@@ -134,6 +269,7 @@ page = SolaraViz(
     components=[
         SpacePlot,
         StatePlot,
+        StatsRow,
         get_cons_progressive_ratio,
     ],
     model_params=model_params,
