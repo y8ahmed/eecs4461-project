@@ -33,8 +33,8 @@ def agent_portrayal(agent):
             "size": 25}
 
 
-def get_neutral_progressive_ratio(model):
-    ratio = model.neutral_progressive_ratio()
+def get_cons_progressive_ratio(model):
+    ratio = model.cons_progressive_ratio()
     ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
     infected_text = str(number_conservative(model))
     progressive_text = str(number_progressive(model))
@@ -42,10 +42,24 @@ def get_neutral_progressive_ratio(model):
 
     # TODO mel to add graph output
     return solara.Markdown(
-        f"Neutral/Progressive Ratio: {ratio_text}<br>"
+        f"Conservate/Progressive Ratio: {ratio_text}<br>"
         f"Progressive Count: {progressive_text}<br>"
         f"Conservative Count: {infected_text}<br>"
-        f"Neutral Count: {neutral_text}"
+        f"Neutral Count: {neutral_text}<br>"
+    )
+
+
+def get_interactions(model):
+    ratio = model.cons_progressive_ratio()
+    ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
+    infected_text = str(number_conservative(model))
+    progressive_text = str(number_progressive(model))
+
+    # TODO mel to add graph output
+    return solara.Markdown(
+        f"Neutral/Progressive Ratio: {ratio_text}<br>"
+        f"Progressive Count: {progressive_text}<br>"
+        f"Conservative Count: {infected_text}"
     )
 
 
@@ -53,7 +67,7 @@ model_params = {
     "seed": {
         "type": "InputText",
         "value": 42,
-        "label": "Random Seed",
+        "label": "Random Number Generator Seed",
     },
     "num_nodes": Slider(
         label="Number of agents",
@@ -69,54 +83,40 @@ model_params = {
         max=8,
         step=1,
     ),
-    "initial_outbreak_size": Slider(
-        label="Initial Outbreak Size",
+    "num_bots": Slider(
+        label="Number of Bots",
         value=1,
         min=1,
         max=10,
         step=1,
     ),
-    "virus_spread_chance": Slider(
-        label="Virus Spread Chance",
+    "positive_chance": Slider(
+        label="Probability to Follow",
         value=0.4,
         min=0.0,
         max=1.0,
         step=0.1,
     ),
-    "virus_check_frequency": Slider(
-        label="Virus Check Frequency",
+    "self_check_frequency": Slider(
+        label="Self Check Frequency",
         value=0.4,
         min=0.0,
         max=1.0,
         step=0.1,
     ),
-    "recovery_chance": Slider(
-        label="Recovery Chance",
+    "politics_change_chance": Slider(
+        label="Politics Change Chance",
         value=0.3,
         min=0.0,
         max=1.0,
         step=0.1,
-    ),
-    "density": Slider(
-        label="Density",
-        value=0.8,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-    ),
-    "homophily": Slider(
-        label="Homophily",
-        value=0.4,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-    ),
+    )
 }
 
 
 def post_process_lineplot(ax):
     ax.set_ylim(ymin=0)
-    ax.set_ylabel("# people")
+    ax.set_ylabel("# agents")
     ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
 
 
@@ -133,7 +133,7 @@ page = SolaraViz(
     components=[
         SpacePlot,
         StatePlot,
-        get_neutral_progressive_ratio,
+        get_cons_progressive_ratio,
     ],
     model_params=model_params,
     name="TikTok Echo Chamber Model",
