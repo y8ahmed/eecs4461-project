@@ -68,10 +68,13 @@ class TikTokEchoChamber(Model):
         """
         super().__init__(seed=seed)
         self.num_nodes = num_nodes
-        prob = avg_node_degree / self.num_nodes # this is for the probability for an edge to be connected
-        # TODO give these directed edges. need zorder. directed=True causes error. Don't think it's possible.
-        self.G = nx.erdos_renyi_graph(n=self.num_nodes, p=prob)
+        prob = avg_node_degree / self.num_nodes 
+
+        self.G = nx.watts_strogatz_graph(n=num_nodes, k=avg_node_degree, p=prob, seed=seed)
+
         self.grid = mesa.space.NetworkGrid(self.G)
+
+        self.G = self.G.to_directed()
 
         self.initial_outbreak_size = (
             initial_outbreak_size if initial_outbreak_size <= num_nodes else num_nodes
@@ -93,6 +96,9 @@ class TikTokEchoChamber(Model):
         # Create agents as human and neutral first
         idCounter = 0
         for node in self.G.nodes():
+            # Randomly assign political leaning (-5 to +5)
+            political_leaning = self.random.randint(-5, 5)
+
             a = TikTokAgent(
                 idCounter,
                 self,
@@ -102,6 +108,7 @@ class TikTokEchoChamber(Model):
                 self.virus_check_frequency,
                 self.recovery_chance,
                 self.gain_resistance_chance,
+                political_leaning=political_leaning,
             )
             idCounter += 1
             # Attach the agent to the node
@@ -116,6 +123,15 @@ class TikTokEchoChamber(Model):
         for a in self.grid.get_cell_list_contents(progressive_nodes):
             a.type = AgentType.BOT
             a.state = State.PROGRESSIVE
+
+        # Add edge weights based on political similarity
+        for u, v in self.G.edges():
+            agent_u = self.grid.get_cell_list_contents([u])[0]
+            agent_v = self.grid.get_cell_list_contents([v])[0]
+            political_diff = abs(agent_u.political_leaning - agent_v.political_leaning)
+            # Higher weight for similar political views
+            weight = 1.0 - (political_diff / 10.0)
+            self.G[u][v]['weight'] = weight
 
         self.running = True
         self.datacollector.collect(self)
