@@ -47,7 +47,7 @@ class TikTokAgent(Agent):
             model,
             agent_type,
             initial_state,
-            spread_chance,
+            positive_chance,
             self_check_frequency,
             politics_change_chance,
             gain_resistance_chance,
@@ -59,7 +59,7 @@ class TikTokAgent(Agent):
         :param id: Agent's unique Identification number
         :param agent_type: Human or Bot agent
         :param initial_state: Whether an agent is Progressive, Conservative or Neutral initially
-        :param spread_chance: Probability of an infected agent to have positive interactions with others (0-1)
+        :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
         :param self_check_frequency: How often agents check whether they are infected (0-1)
         :param politics_change_chance: Probability of an infected node to recover (0-1)
         :param gain_resistance_chance: Probability of a node that has recovered to become resistant (0-1)
@@ -68,7 +68,7 @@ class TikTokAgent(Agent):
         self.id = id
         self.state = initial_state
         self.type = agent_type
-        self.spread_chance = spread_chance
+        self.positive_chance = positive_chance
         self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
         self.gain_resistance_chance = gain_resistance_chance
@@ -125,9 +125,13 @@ class TikTokAgent(Agent):
 
         counter = 0
         for agent in dissimilar_neighbors:
-            if self.random.random() < self.spread_chance and counter <= cap:
+            if self.random.random() < self.positive_chance and counter <= cap:
                 agent.state = self.state
-                print(f"Agents {agent.id} and {self.id} just followed eachother")
+
+                # change edge colours
+                self.model.G[self.id][agent.id]['weight'] = 1
+
+                self.model.interactions += f"+ Agents {agent.id} and {self.id} followed each other<br>"
             counter += 1  # keep track of number of interactions so far
 
     def do_negative(self, cap):
@@ -139,8 +143,11 @@ class TikTokAgent(Agent):
         for agent in similar_neighbors:
             if counter <= cap:
                 self.try_gain_neutrality()
-                print(f"Agents {agent.id} and {self.id} UNfollowed eachother")
-                # FUTURE remove edges with neighbor
+
+                # remove edges with neighbor
+                self.model.G[self.id][agent.id]['weight'] = 0
+
+                self.model.interactions += f"- Agents {agent.id} and {self.id} UNfollowed each other<br>"
                 counter += 1
             pass
 

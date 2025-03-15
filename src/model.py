@@ -14,14 +14,6 @@ def number_type(model, type):
     return sum(1 for a in model.grid.get_all_cell_contents() if a.type is type)
 
 
-def number_human(model):
-    return number_type(model, AgentType.HUMAN)
-
-
-def number_bot(model):
-    return number_type(model, AgentType.BOT)
-
-
 def number_conservative(model):
     return number_state(model, State.CONSERVATIVE)
 
@@ -34,6 +26,17 @@ def number_neutral(model):
     return number_state(model, State.NEUTRAL)
 
 
+def cons_progressive_ratio(self):
+    try:
+        return number_state(self, State.CONSERVATIVE) / number_state(self, State.PROGRESSIVE)
+    except ZeroDivisionError:
+        return math.inf
+
+
+def step_interactions(model):
+    return model.interactions
+
+
 class TikTokEchoChamber(Model):
     """A virus model with some number of agents.
     Based off of the Virus on a Network and Schelling Aggregation Models"""
@@ -42,13 +45,11 @@ class TikTokEchoChamber(Model):
             self,
             num_nodes=10,
             avg_node_degree=3,
-            initial_outbreak_size=1,
-            virus_spread_chance=0.4,
-            virus_check_frequency=0.4,
-            recovery_chance=0.3,
+            num_bots=1,
+            positive_chance=0.4,
+            self_check_frequency=0.4,
+            politics_change_chance=0.3,
             gain_resistance_chance=0.5,
-            density=0.8,
-            homophily=0.4,
             seed=None,
     ):
         """
@@ -57,28 +58,24 @@ class TikTokEchoChamber(Model):
         Args:
         :param num_nodes: Initial number of agents
         :param avg_node_degree: Average number of connections between agents
-        :param initial_outbreak_size: Initial number of infected nodes
-        :param virus_spread_chance: Probability of an infected agent to have positive interactions with others (0-1)
-        :param virus_check_frequency: How often agents check whether they are infected (0-1)
-        :param recovery_chance: Probability of an infected node to recover (0-1)
+        :param num_bots: Initial number of infected nodes
+        :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
+        :param self_check_frequency: How often agents check whether they are infected (0-1)
+        :param politics_change_chance: Probability of an infected node to recover (0-1)
         :param gain_resistance_chance: Probability of a node that has recovered to become resistant (0-1)
-        :param density: Initial chance for a cell to be populated (0-1)
-        :param homophily: Minimum number of similar neighbors needed for echo chamber
         :param seed: Seed for reproducibility
         """
         super().__init__(seed=seed)
         self.num_nodes = num_nodes
         prob = avg_node_degree / self.num_nodes # this is for the probability for an edge to be connected
-        # TODO give these directed edges. need zorder. directed=True causes error. Don't think it's possible.
-        self.G = nx.erdos_renyi_graph(n=self.num_nodes, p=prob)
+        self.G = nx.powerlaw_cluster_graph(n=num_nodes, m=avg_node_degree, p=prob, seed=seed)  # to increase likelihood that all nodes are connected
         self.grid = mesa.space.NetworkGrid(self.G)
+        self.G = self.G.to_directed()
 
-        self.initial_outbreak_size = (
-            initial_outbreak_size if initial_outbreak_size <= num_nodes else num_nodes
-        )
-        self.virus_spread_chance = virus_spread_chance
-        self.virus_check_frequency = virus_check_frequency
-        self.recovery_chance = recovery_chance
+        self.num_bots = num_bots if num_bots <= num_nodes else num_nodes
+        self.positive_chance = positive_chance
+        self.self_check_frequency = self_check_frequency
+        self.politics_change_chance = politics_change_chance
         self.gain_resistance_chance = gain_resistance_chance
 
         self.datacollector = mesa.DataCollector(
@@ -86,21 +83,22 @@ class TikTokEchoChamber(Model):
                 "Conservative": number_conservative,
                 "Progressive": number_progressive,
                 "Neutral": number_neutral,
-                "N over P": self.neutral_progressive_ratio,
             }
         )
+        self.interactions = ""  # keep track of each interaction per step
 
         # Create agents as human and neutral first
         idCounter = 0
         for node in self.G.nodes():
+
             a = TikTokAgent(
                 idCounter,
                 self,
                 AgentType.HUMAN,
                 State.NEUTRAL,
-                self.virus_spread_chance,
-                self.virus_check_frequency,
-                self.recovery_chance,
+                self.positive_chance,
+                self.self_check_frequency,
+                self.politics_change_chance,
                 self.gain_resistance_chance,
             )
             idCounter += 1
@@ -108,23 +106,24 @@ class TikTokEchoChamber(Model):
             self.grid.place_agent(a, node)
 
         # Make equal count conservative and progressive bot nodes.
-        infected_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
+        infected_nodes = self.random.sample(list(self.G), self.num_bots)
         for a in self.grid.get_cell_list_contents(infected_nodes):
             a.type = AgentType.BOT
             a.state = State.CONSERVATIVE
-        progressive_nodes = self.random.sample(list(self.G), self.initial_outbreak_size)
+        progressive_nodes = self.random.sample(list(self.G), self.num_bots)
         for a in self.grid.get_cell_list_contents(progressive_nodes):
             a.type = AgentType.BOT
             a.state = State.PROGRESSIVE
 
+        # Add edge weights based on political similarity
+        for u, v in self.G.edges():
+            agent_u = self.grid.get_cell_list_contents([u])[0]
+            agent_v = self.grid.get_cell_list_contents([v])[0]
+            weight = 1 if (agent_u.state == agent_v.state) else 0
+            self.G[u][v]['weight'] = weight
+
         self.running = True
         self.datacollector.collect(self)
-
-    def neutral_progressive_ratio(self):
-        try:
-            return number_state(self, State.NEUTRAL) / number_state(self, State.PROGRESSIVE)
-        except ZeroDivisionError:
-            return math.inf
 
     def step(self):
         self.agents.shuffle_do("step")
