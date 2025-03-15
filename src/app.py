@@ -262,6 +262,7 @@ def SpacePlot(model):
     ax.legend()
     ax.set_axis_off()
 
+
     return solara.FigureMatplotlib(fig)
 
 def StatsRow(model):
@@ -277,7 +278,7 @@ StatePlot = make_plot_component(
     post_process=post_process_lineplot,
 )
 
-model1 = TikTokEchoChamber()
+model1  = TikTokEchoChamber()
 
 page = SolaraViz(
     model1,
@@ -286,6 +287,7 @@ page = SolaraViz(
         StatePlot,
         StatsRow
     ],
+
     model_params=model_params,
     name="TikTok Echo Chamber Model",
 )
