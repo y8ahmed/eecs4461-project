@@ -51,6 +51,7 @@ class TikTokAgent(Agent):
             self_check_frequency,
             politics_change_chance,
             gain_resistance_chance,
+            political_leaning=0,  # -5 to +5 scale
     ):
         """
         Create a new TikTok agent.
@@ -72,6 +73,7 @@ class TikTokAgent(Agent):
         self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
         self.gain_resistance_chance = gain_resistance_chance
+        self.political_leaning = max(min(political_leaning, 5), -5) 
 
     def try_gain_neutrality(self):
         if self.random.random() < self.gain_resistance_chance:
