@@ -39,7 +39,6 @@ def get_cons_progressive_ratio(model):
     progressive_text = str(number_progressive(model))
     neutral_text = str(number_neutral(model))
 
-    # TODO mel to add graph output
     return solara.Markdown(
         f"Conservate/Progressive Ratio: {ratio_text}<br>"
         f"Progressive Count: {progressive_text}<br>"
@@ -49,17 +48,17 @@ def get_cons_progressive_ratio(model):
 
 
 def get_interactions(model):
+    # TODO plot interactions
     ratio = model.cons_progressive_ratio()
     ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
     infected_text = str(number_conservative(model))
     progressive_text = str(number_progressive(model))
 
-    # TODO mel to add graph output
     return solara.Markdown(
-        f"Neutral/Progressive Ratio: {ratio_text}<br>"
+        f"Conservative/Progressive Ratio: {ratio_text}<br>"
         f"Progressive Count: {progressive_text}<br>"
         f"Conservative Count: {infected_text}"
-    )people
+    )
 
 
 def identify_clusters(model):
@@ -67,7 +66,6 @@ def identify_clusters(model):
     conservative_graph = nx.Graph()
     progressive_graph = nx.Graph()
     neutral_graph = nx.Graph()
-
 
     for node in model.G.nodes():
         agent = model.grid.get_cell_list_contents([node])[0]
@@ -77,7 +75,6 @@ def identify_clusters(model):
             progressive_graph.add_node(node)
         elif agent.state == State.NEUTRAL:
             neutral_graph.add_node(node)
-
 
     for edge in model.G.edges():
         u, v = edge
@@ -92,15 +89,50 @@ def identify_clusters(model):
             elif agent_u.state == State.NEUTRAL:
                 neutral_graph.add_edge(u, v)
 
+    conservative_clusters = list(nx.connected_components(conservative_graph))
+    progressive_clusters = list(nx.connected_components(progressive_graph))
+    neutral_clusters = list(nx.connected_components(neutral_graph))
+
+    all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
+
+    return all_clusters
+
+
+def get_graphs(model):
+
+    conservative_graph = nx.Graph()
+    progressive_graph = nx.Graph()
+    neutral_graph = nx.Graph()
+
+    for node in model.G.nodes():
+        agent = model.grid.get_cell_list_contents([node])[0]
+        if agent.state == State.CONSERVATIVE:
+            conservative_graph.add_node(node)
+        elif agent.state == State.PROGRESSIVE:
+            progressive_graph.add_node(node)
+        elif agent.state == State.NEUTRAL:
+            neutral_graph.add_node(node)
+
+    for edge in model.G.edges():
+        u, v = edge
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.state == agent_v.state:
+            if agent_u.state == State.CONSERVATIVE:
+                conservative_graph.add_edge(u, v)
+            elif agent_u.state == State.PROGRESSIVE:
+                progressive_graph.add_edge(u, v)
+            elif agent_u.state == State.NEUTRAL:
+                neutral_graph.add_edge(u, v)
 
     conservative_clusters = list(nx.connected_components(conservative_graph))
     progressive_clusters = list(nx.connected_components(progressive_graph))
     neutral_clusters = list(nx.connected_components(neutral_graph))
 
-
     all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
 
-    return all_clusters
+    return conservative_graph
 
 
 def count_cross_cluster_interactions(model):
@@ -132,7 +164,6 @@ def get_agent_stats(model):
 
     steps = model.steps
 
-
     markdown_text = f"""
     ## Agent Statistics
 
@@ -155,16 +186,13 @@ def get_cluster_stats(model):
 
     cluster_ratio = num_clusters / total_agents if total_agents > 0 else 0
 
-
     if num_clusters > 0:
         total_size = sum(len(cluster) for cluster in clusters)
         avg_cluster_size = total_size / num_clusters
     else:
         avg_cluster_size = 0
 
-
     cross_interactions = count_cross_cluster_interactions(model)
-
 
     markdown_text = f"""
     ## Cluster Analysis
@@ -177,26 +205,6 @@ def get_cluster_stats(model):
 
     return solara.Markdown(markdown_text)
 
-
-def StatsRow(model):
-    return solara.Row(children=[
-        solara.Column(children=[get_agent_stats(model)], style={"width": "50%"}),
-        solara.Column(children=[get_cluster_stats(model)], style={"width": "50%"})
-    ], style={"width": "200%"})
-
-
-def post_process_lineplot(ax):
-    ax.set_ylim(ymin=0)
-    ax.set_ylabel("# people")
-    ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
-
-
-
-SpacePlot = make_space_component(agent_portrayal)
-StatePlot = make_plot_component(
-    {"Conservative": "tab:red", "Progressive": "tab:blue", "Neutral": "tab:gray"},
-    post_process=post_process_lineplot,
-)
 
 model_params = {
     "seed": {
@@ -248,11 +256,17 @@ model_params = {
     )
 }
 
-
 def post_process_lineplot(ax):
     ax.set_ylim(ymin=0)
-    ax.set_ylabel("# agents")
+    ax.set_ylabel("# people")
     ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+
+
+def StatsRow(model):
+    return solara.Row(children=[
+        solara.Column(children=[get_agent_stats(model)], style={"width": "50%"}),
+        solara.Column(children=[get_cluster_stats(model)], style={"width": "50%"})
+    ], style={"width": "200%"})
 
 
 SpacePlot = make_space_component(agent_portrayal)
@@ -260,7 +274,6 @@ StatePlot = make_plot_component(
     {"Conservative": "tab:red", "Progressive": "tab:blue", "Neutral": "tab:gray"},
     post_process=post_process_lineplot,
 )
-
 
 model1 = TikTokEchoChamber()
 
@@ -270,7 +283,6 @@ page = SolaraViz(
         SpacePlot,
         StatePlot,
         StatsRow,
-        get_cons_progressive_ratio,
     ],
     model_params=model_params,
     name="TikTok Echo Chamber Model",
