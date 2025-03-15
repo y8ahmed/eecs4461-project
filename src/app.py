@@ -195,25 +195,6 @@ def SpacePlot(model):
     fig = Figure()
     ax = fig.add_subplot()
 
-    # For larger networks, sample a subset of nodes to visualize
-    G = model.G
-    if len(G.nodes()) > 50:
-        # Sample 50 nodes for visualization
-        nodes_to_visualize = sorted(list(G.nodes()))[:50]
-        G = G.subgraph(nodes_to_visualize)
-
-    # Try to use a more efficient layout algorithm
-    try:
-        # Use kamada_kawai for smaller networks (more aesthetically pleasing)
-        if len(G.nodes()) <= 30:
-            pos = nx.kamada_kawai_layout(G)
-        else:
-            # Use spring layout with limited iterations for larger networks
-            pos = nx.spring_layout(G, k=0.3, iterations=50, seed=model.seed)
-    except:
-        # Fallback to basic spring layout with few iterations
-        pos = nx.spring_layout(G, k=0.3, iterations=20, seed=model.seed)
-
     # Extract node colors based on agent state
     bot_nodes = []
     hum_nodes = []
@@ -241,17 +222,17 @@ def SpacePlot(model):
 
     # Set edge transparency based on political similarity
     edge_alphas = []
-    for u, v in G.edges():
-        edge_alphas.append(0 if G[u][v].get('weight') == 0 else 0.5)
+    for u, v in model.G.edges():
+        edge_alphas.append(0 if model.G[u][v].get('weight') == 0.1 else 0.5)
 
     # Create pos for bot nodes and human nodes
-    botpos = {k: v for k, v in pos.items() if k in bot_nodes}
-    humpos = {k: v for k, v in pos.items() if k in hum_nodes}
+    botpos = {k: v for k, v in model.pos.items() if k in bot_nodes}
+    humpos = {k: v for k, v in model.pos.items() if k in hum_nodes}
 
     # Draw the network
-    nx.draw_networkx_nodes(G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
-    nx.draw_networkx_nodes(G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
-    nx.draw_networkx_edges(G, pos, edge_color="gray", width=1, alpha=edge_alphas, ax=ax)
+    nx.draw_networkx_nodes(model.G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
+    nx.draw_networkx_nodes(model.G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
+    nx.draw_networkx_edges(model.G, model.pos, edge_color="gray", width=1, alpha=edge_alphas, ax=ax)
 
     # Show a note if we're only displaying a subset
     if len(model.G.nodes()) > 50:
@@ -259,7 +240,7 @@ def SpacePlot(model):
     else:
         ax.set_title("TikTok Echo Chamber Network")
 
-    ax.legend()
+    ax.legend(loc="best")
     ax.set_axis_off()
 
 

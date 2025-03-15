@@ -145,7 +145,7 @@ class TikTokAgent(Agent):
                 self.try_gain_neutrality()
 
                 # remove edges with neighbor
-                self.model.G[self.id][agent.id]['weight'] = 0
+                self.model.G[self.id][agent.id]['weight'] = 0.1
 
                 self.model.interactions += f"- Agents {agent.id} and {self.id} UNfollowed each other<br>"
                 counter += 1

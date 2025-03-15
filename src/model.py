@@ -86,6 +86,27 @@ class TikTokEchoChamber(Model):
             }
         )
         self.interactions = ""  # keep track of each interaction per step
+        self.pos = nx.spring_layout(self.G, k=0.3, iterations=20)
+
+        # Initialize the grid
+
+        # For larger networks, sample a subset of nodes to visualize
+        if len(self.G.nodes()) > 50:
+            # Sample 50 nodes for visualization
+            nodes_to_visualize = sorted(list(self.G.nodes()))[:50]
+            self.G = self.G.subgraph(nodes_to_visualize)
+
+        # Try to use a more efficient layout algorithm
+        try:
+            # Use kamada_kawai for smaller networks (more aesthetically pleasing)
+            if len(self.G.nodes()) <= 30:
+                self.pos = nx.kamada_kawai_layout(self.G)
+            else:
+                # Use spring layout with limited iterations for larger networks
+                self.pos = nx.spring_layout(self.G, k=0.3, iterations=50)
+        except:
+            # Fallback to basic spring layout with few iterations
+            pass
 
         # Create agents as human and neutral first
         idCounter = 0
@@ -115,12 +136,9 @@ class TikTokEchoChamber(Model):
             a.type = AgentType.BOT
             a.state = State.PROGRESSIVE
 
-        # Add edge weights based on political similarity
+        # Add edge weights based on political similarity - 0.1 so the graph looks disconnected at the start
         for u, v in self.G.edges():
-            agent_u = self.grid.get_cell_list_contents([u])[0]
-            agent_v = self.grid.get_cell_list_contents([v])[0]
-            weight = 1 if (agent_u.state == agent_v.state) else 0
-            self.G[u][v]['weight'] = weight
+            self.G[u][v]['weight'] = 0.1
 
         self.running = True
         self.datacollector.collect(self)
