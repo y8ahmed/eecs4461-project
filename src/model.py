@@ -14,14 +14,6 @@ def number_type(model, type):
     return sum(1 for a in model.grid.get_all_cell_contents() if a.type is type)
 
 
-def number_human(model):
-    return number_type(model, AgentType.HUMAN)
-
-
-def number_bot(model):
-    return number_type(model, AgentType.BOT)
-
-
 def number_conservative(model):
     return number_state(model, State.CONSERVATIVE)
 
@@ -34,9 +26,15 @@ def number_neutral(model):
     return number_state(model, State.NEUTRAL)
 
 
-def get_interactions(model):
-    #TODO return interactions each step
-    return number_state(model, State.NEUTRAL)
+def cons_progressive_ratio(self):
+    try:
+        return number_state(self, State.CONSERVATIVE) / number_state(self, State.PROGRESSIVE)
+    except ZeroDivisionError:
+        return math.inf
+
+
+def step_interactions(model):
+    return model.interactions
 
 
 class TikTokEchoChamber(Model):
@@ -70,13 +68,11 @@ class TikTokEchoChamber(Model):
         super().__init__(seed=seed)
         self.num_nodes = num_nodes
         prob = avg_node_degree / self.num_nodes # this is for the probability for an edge to be connected
-        self.G = nx.watts_strogatz_graph(n=num_nodes, k=avg_node_degree, p=prob, seed=seed)
+        self.G = nx.powerlaw_cluster_graph(n=num_nodes, m=avg_node_degree, p=prob, seed=seed)  # to increase likelihood that all nodes are connected
         self.grid = mesa.space.NetworkGrid(self.G)
         self.G = self.G.to_directed()
 
-        self.num_bots = (
-            num_bots if num_bots <= num_nodes else num_nodes
-        )
+        self.num_bots = num_bots if num_bots <= num_nodes else num_nodes
         self.positive_chance = positive_chance
         self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
@@ -87,15 +83,13 @@ class TikTokEchoChamber(Model):
                 "Conservative": number_conservative,
                 "Progressive": number_progressive,
                 "Neutral": number_neutral,
-                "Interactions": get_interactions
             }
         )
+        self.interactions = ""  # keep track of each interaction per step
 
         # Create agents as human and neutral first
         idCounter = 0
         for node in self.G.nodes():
-            # Randomly assign political leaning (-5 to +5)
-            political_leaning = self.random.randint(-5, 5)
 
             a = TikTokAgent(
                 idCounter,
@@ -106,8 +100,6 @@ class TikTokEchoChamber(Model):
                 self.self_check_frequency,
                 self.politics_change_chance,
                 self.gain_resistance_chance,
-                # TODO RESOLVE STATE AND POLITICAL LEANING
-                political_leaning=political_leaning,
             )
             idCounter += 1
             # Attach the agent to the node
@@ -127,19 +119,11 @@ class TikTokEchoChamber(Model):
         for u, v in self.G.edges():
             agent_u = self.grid.get_cell_list_contents([u])[0]
             agent_v = self.grid.get_cell_list_contents([v])[0]
-            political_diff = abs(agent_u.political_leaning - agent_v.political_leaning)
-            # Higher weight for similar political views
-            weight = 1.0 - (political_diff / 10.0)
+            weight = 1 if (agent_u.state == agent_v.state) else 0
             self.G[u][v]['weight'] = weight
 
         self.running = True
         self.datacollector.collect(self)
-
-    def cons_progressive_ratio(self):
-        try:
-            return number_state(self, State.CONSERVATIVE) / number_state(self, State.PROGRESSIVE)
-        except ZeroDivisionError:
-            return math.inf
 
     def step(self):
         self.agents.shuffle_do("step")

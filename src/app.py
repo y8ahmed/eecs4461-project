@@ -1,4 +1,3 @@
-import math
 from matplotlib.figure import Figure
 import solara
 import networkx as nx
@@ -6,60 +5,15 @@ import networkx as nx
 from model import (
     State,
     TikTokEchoChamber,
-    number_conservative, number_progressive, number_neutral,
+    number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions
 )
 from mesa.visualization import (
     Slider,
     SolaraViz,
-    make_plot_component,
-    make_space_component,
+    make_plot_component
 )
 
 from agents import AgentType
-
-
-def agent_portrayal(agent):
-    node_color_dict = {
-        State.CONSERVATIVE: "tab:red",
-        State.PROGRESSIVE: "tab:blue",
-        State.NEUTRAL: "tab:gray",
-    }
-    node_shape_dict = {
-        AgentType.HUMAN: "o",
-        AgentType.BOT: "x",
-    }
-    return {"color": node_color_dict[agent.state],
-            "marker": node_shape_dict[agent.type],
-            "size": 25}
-
-
-def get_cons_progressive_ratio(model):
-    ratio = model.cons_progressive_ratio()
-    ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
-    infected_text = str(number_conservative(model))
-    progressive_text = str(number_progressive(model))
-    neutral_text = str(number_neutral(model))
-
-    return solara.Markdown(
-        f"Conservate/Progressive Ratio: {ratio_text}<br>"
-        f"Progressive Count: {progressive_text}<br>"
-        f"Conservative Count: {infected_text}<br>"
-        f"Neutral Count: {neutral_text}<br>"
-    )
-
-
-def get_interactions(model):
-    # TODO plot interactions
-    ratio = model.cons_progressive_ratio()
-    ratio_text = r"$\infty$" if ratio is math.inf else f"{ratio: .2f}"
-    infected_text = str(number_conservative(model))
-    progressive_text = str(number_progressive(model))
-
-    return solara.Markdown(
-        f"Conservative/Progressive Ratio: {ratio_text}<br>"
-        f"Progressive Count: {progressive_text}<br>"
-        f"Conservative Count: {infected_text}"
-    )
 
 
 def identify_clusters(model):
@@ -99,43 +53,6 @@ def identify_clusters(model):
     return all_clusters
 
 
-def get_graphs(model):
-
-    conservative_graph = nx.Graph()
-    progressive_graph = nx.Graph()
-    neutral_graph = nx.Graph()
-
-    for node in model.G.nodes():
-        agent = model.grid.get_cell_list_contents([node])[0]
-        if agent.state == State.CONSERVATIVE:
-            conservative_graph.add_node(node)
-        elif agent.state == State.PROGRESSIVE:
-            progressive_graph.add_node(node)
-        elif agent.state == State.NEUTRAL:
-            neutral_graph.add_node(node)
-
-    for edge in model.G.edges():
-        u, v = edge
-        agent_u = model.grid.get_cell_list_contents([u])[0]
-        agent_v = model.grid.get_cell_list_contents([v])[0]
-
-        if agent_u.state == agent_v.state:
-            if agent_u.state == State.CONSERVATIVE:
-                conservative_graph.add_edge(u, v)
-            elif agent_u.state == State.PROGRESSIVE:
-                progressive_graph.add_edge(u, v)
-            elif agent_u.state == State.NEUTRAL:
-                neutral_graph.add_edge(u, v)
-
-    conservative_clusters = list(nx.connected_components(conservative_graph))
-    progressive_clusters = list(nx.connected_components(progressive_graph))
-    neutral_clusters = list(nx.connected_components(neutral_graph))
-
-    all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
-
-    return conservative_graph
-
-
 def count_cross_cluster_interactions(model):
 
     cross_interactions = 0
@@ -158,7 +75,7 @@ def get_agent_stats(model):
     neutral_count = number_neutral(model)
 
     try:
-        np_ratio = neutral_count / progressive_count
+        np_ratio = cons_progressive_ratio(model)
         np_ratio_text = f"{np_ratio:.2f}"
     except ZeroDivisionError:
         np_ratio_text = "∞"
@@ -171,7 +88,7 @@ def get_agent_stats(model):
     - Conservative: {conservative_count}
     - Progressive: {progressive_count}
     - Neutral: {neutral_count}
-    - Neutral/Progressive Ratio: {np_ratio_text}
+    - Conservative/Progressive Ratio: {np_ratio_text}
     - Simulation Steps: {steps}
     """
 
@@ -199,17 +116,27 @@ def get_cluster_stats(model):
     ## Cluster Analysis
 
     - Number of Clusters: {num_clusters}
-    - Clusters/Agents Ratio: {cluster_ratio:.3f}
-    - Average Cluster Size: {avg_cluster_size:.2f}
+    - Clusters/Agents Ratio: {cluster_ratio:.2f}
+    - Average Cluster Size: {avg_cluster_size:.0f}
     - Cross-Cluster Interactions: {cross_interactions}
     """
 
     return solara.Markdown(markdown_text)
 
 
+def get_interactions(model):
+    text = step_interactions(model)
+    markdown_text = f"""
+    Agent Actions
+
+    {text}
+    """
+    return solara.Markdown(markdown_text)
+
+
 model_params = {
     "seed": {
-        "type": "InputText",
+        "type": "SliderInt",
         "value": 42,
         "label": "Random Number Generator Seed",
     },
@@ -257,15 +184,11 @@ model_params = {
     )
 }
 
+
 def post_process_lineplot(ax):
     ax.set_ylim(ymin=0)
-    ax.set_ylabel("# people")
+    ax.set_ylabel("# agents")
     ax.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
-
-def add_edges_plot(ax):
-    # change edge color to black
-    for edge in ax.collections:
-        edge.set_edgecolor("red")
 
 
 def SpacePlot(model):
@@ -286,47 +209,49 @@ def SpacePlot(model):
             pos = nx.kamada_kawai_layout(G)
         else:
             # Use spring layout with limited iterations for larger networks
-            pos = nx.spring_layout(G, k=0.3, iterations=50, seed=42)
+            pos = nx.spring_layout(G, k=0.3, iterations=50, seed=model.seed)
     except:
         # Fallback to basic spring layout with few iterations
-        pos = nx.spring_layout(G, k=0.3, iterations=20, seed=42)
+        pos = nx.spring_layout(G, k=0.3, iterations=20, seed=model.seed)
 
     # Extract node colors based on agent state
-    node_colors = []
-    node_sizes = []
-    for node in G.nodes():
-        agents = model.grid.get_cell_list_contents([node])
-        if agents:
-            agent = agents[0]
+    bot_nodes = []
+    hum_nodes = []
+    bot_colors = []
+    hum_colors = []
+    for agent in model.grid.agents:
+        node = agent.id
+        if agent.type == AgentType.BOT:
             if agent.state == State.PROGRESSIVE:
-                node_colors.append("blue")
-            elif agent.state == State.CONSERVATIVE:
-                node_colors.append("red")
-            else:
-                node_colors.append("gray")
+                bot_nodes.append(node)
+                bot_colors.append("blue")
+            if agent.state == State.CONSERVATIVE:
+                bot_nodes.append(node)
+                bot_colors.append("red")
+        if agent.type == AgentType.HUMAN:
+            if agent.state == State.PROGRESSIVE:
+                hum_nodes.append(node)
+                hum_colors.append("blue")
+            if agent.state == State.CONSERVATIVE:
+                hum_nodes.append(node)
+                hum_colors.append("red")
+            if agent.state == State.NEUTRAL:
+                hum_nodes.append(node)
+                hum_colors.append("gray")
 
-            if agent.type == AgentType.BOT:
-                node_sizes.append(150)  # Bigger size for bots
-            else:
-                node_sizes.append(100)  # Regular size for humans
-        else:
-            node_colors.append("gray")
-            node_sizes.append(100)
-
-    # Extract edge colors based on political similarity
-    edge_colors = []
+    # Set edge transparency based on political similarity
+    edge_alphas = []
     for u, v in G.edges():
-        weight = G[u][v].get('weight', 0.5)
-        if weight > 0.7:
-            edge_colors.append("green")
-        elif weight > 0.3:
-            edge_colors.append("yellow")
-        else:
-            edge_colors.append("red")
+        edge_alphas.append(0 if G[u][v].get('weight') == 0 else 0.5)
+
+    # Create pos for bot nodes and human nodes
+    botpos = {k: v for k, v in pos.items() if k in bot_nodes}
+    humpos = {k: v for k, v in pos.items() if k in hum_nodes}
 
     # Draw the network
-    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=node_sizes, ax=ax)
-    nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=1.5, alpha=0.7, ax=ax)
+    nx.draw_networkx_nodes(G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
+    nx.draw_networkx_nodes(G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
+    nx.draw_networkx_edges(G, pos, edge_color="gray", width=1, alpha=edge_alphas, ax=ax)
 
     # Show a note if we're only displaying a subset
     if len(model.G.nodes()) > 50:
@@ -334,18 +259,19 @@ def SpacePlot(model):
     else:
         ax.set_title("TikTok Echo Chamber Network")
 
+    ax.legend()
     ax.set_axis_off()
 
     return solara.FigureMatplotlib(fig)
 
 def StatsRow(model):
     return solara.Row(children=[
-        solara.Column(children=[get_agent_stats(model)], style={"width": "50%"}),
-        solara.Column(children=[get_cluster_stats(model)], style={"width": "50%"})
+        solara.Column(children=[get_agent_stats(model)], style={"width": "30%"}),
+        solara.Column(children=[get_cluster_stats(model)], style={"width": "30%"}),
+        solara.Column(children=[get_interactions(model)], style={"width": "40%"})
     ], style={"width": "200%"})
 
 
-SpacePlot = make_space_component(agent_portrayal)
 StatePlot = make_plot_component(
     {"Conservative": "tab:red", "Progressive": "tab:blue", "Neutral": "tab:gray"},
     post_process=post_process_lineplot,
@@ -358,9 +284,10 @@ page = SolaraViz(
     components=[
         SpacePlot,
         StatePlot,
-        StatsRow,
+        StatsRow
     ],
     model_params=model_params,
     name="TikTok Echo Chamber Model",
 )
+
 page  # noqa

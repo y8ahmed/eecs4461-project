@@ -51,7 +51,6 @@ class TikTokAgent(Agent):
             self_check_frequency,
             politics_change_chance,
             gain_resistance_chance,
-            political_leaning=0,  # -5 to +5 scale
     ):
         """
         Create a new TikTok agent.
@@ -73,7 +72,6 @@ class TikTokAgent(Agent):
         self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
         self.gain_resistance_chance = gain_resistance_chance
-        self.political_leaning = max(min(political_leaning, 5), -5) 
 
     def try_gain_neutrality(self):
         if self.random.random() < self.gain_resistance_chance:
@@ -129,7 +127,11 @@ class TikTokAgent(Agent):
         for agent in dissimilar_neighbors:
             if self.random.random() < self.positive_chance and counter <= cap:
                 agent.state = self.state
-                print(f"Agents {agent.id} and {self.id} just followed eachother")
+
+                # change edge colours
+                self.model.G[self.id][agent.id]['weight'] = 1
+
+                self.model.interactions += f"+ Agents {agent.id} and {self.id} followed each other<br>"
             counter += 1  # keep track of number of interactions so far
 
     def do_negative(self, cap):
@@ -141,8 +143,11 @@ class TikTokAgent(Agent):
         for agent in similar_neighbors:
             if counter <= cap:
                 self.try_gain_neutrality()
-                print(f"Agents {agent.id} and {self.id} UNfollowed eachother")
-                # FUTURE remove edges with neighbor
+
+                # remove edges with neighbor
+                self.model.G[self.id][agent.id]['weight'] = 0
+
+                self.model.interactions += f"- Agents {agent.id} and {self.id} UNfollowed each other<br>"
                 counter += 1
             pass
 
