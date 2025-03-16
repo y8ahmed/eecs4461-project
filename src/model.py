@@ -26,6 +26,86 @@ def number_neutral(model):
     return number_state(model, State.NEUTRAL)
 
 
+def number_cons_bots(model):
+    return sum(1 for a in model.grid.agents if a.state is State.CONSERVATIVE and a.type is AgentType.BOT)
+
+
+def number_prog_bots(model):
+    return sum(1 for a in model.grid.agents if a.state is State.PROGRESSIVE and a.type is AgentType.BOT)
+
+
+def number_cluster(model):
+    clusters = identify_clusters(model)
+    return len(clusters)
+
+
+def cluster_ratio(model):
+    return number_cluster(model) / model.num_nodes if model.num_nodes > 0 else 0
+
+
+def avg_cluster_size(model):
+    # Identify and analyze clusters
+    clusters = identify_clusters(model)
+    num_clusters = len(clusters)
+
+    avg_size = 0
+    if num_clusters > 0:
+        total_size = sum(len(cluster) for cluster in clusters)
+        avg_size = total_size / num_clusters
+
+    return avg_size
+
+
+def identify_clusters(model):
+    conservative_graph = nx.Graph()
+    progressive_graph = nx.Graph()
+    neutral_graph = nx.Graph()
+
+    for node in model.G.nodes():
+        agent = model.grid.get_cell_list_contents([node])[0]
+        if agent.state == State.CONSERVATIVE:
+            conservative_graph.add_node(node)
+        elif agent.state == State.PROGRESSIVE:
+            progressive_graph.add_node(node)
+        elif agent.state == State.NEUTRAL:
+            neutral_graph.add_node(node)
+
+    for edge in model.G.edges():
+        u, v = edge
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.state == agent_v.state:
+            if agent_u.state == State.CONSERVATIVE:
+                conservative_graph.add_edge(u, v)
+            elif agent_u.state == State.PROGRESSIVE:
+                progressive_graph.add_edge(u, v)
+            elif agent_u.state == State.NEUTRAL:
+                neutral_graph.add_edge(u, v)
+
+    conservative_clusters = list(nx.connected_components(conservative_graph))
+    progressive_clusters = list(nx.connected_components(progressive_graph))
+    neutral_clusters = list(nx.connected_components(neutral_graph))
+
+    all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
+
+    return all_clusters
+
+
+def count_cross_cluster_interactions(model):
+
+    cross_interactions = 0
+    for edge in model.G.edges():
+        u, v = edge
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.state != agent_v.state:
+            cross_interactions += 1
+
+    return cross_interactions
+
+
 def cons_progressive_ratio(self):
     try:
         return number_state(self, State.CONSERVATIVE) / number_state(self, State.PROGRESSIVE)
@@ -47,9 +127,8 @@ class TikTokEchoChamber(Model):
             avg_node_degree=3,
             num_bots=1,
             positive_chance=0.4,
-            self_check_frequency=0.4,
             politics_change_chance=0.3,
-            gain_resistance_chance=0.5,
+            become_neutral_chance=0.5,
             seed=None,
     ):
         """
@@ -60,9 +139,8 @@ class TikTokEchoChamber(Model):
         :param avg_node_degree: Average number of connections between agents
         :param num_bots: Initial number of infected nodes
         :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
-        :param self_check_frequency: How often agents check whether they are infected (0-1)
-        :param politics_change_chance: Probability of an infected node to recover (0-1)
-        :param gain_resistance_chance: Probability of a node that has recovered to become resistant (0-1)
+        :param politics_change_chance: Probability of a non-neutral node to change its politics (0-1)
+        :param become_neutral_chance: Probability of a node to become neutral (0-1)
         :param seed: Seed for reproducibility
         """
         super().__init__(seed=seed)
@@ -74,18 +152,25 @@ class TikTokEchoChamber(Model):
 
         self.num_bots = num_bots if num_bots <= num_nodes else num_nodes
         self.positive_chance = positive_chance
-        self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
-        self.gain_resistance_chance = gain_resistance_chance
+        self.become_neutral_chance = become_neutral_chance
 
         self.datacollector = mesa.DataCollector(
             {
                 "Conservative": number_conservative,
                 "Progressive": number_progressive,
                 "Neutral": number_neutral,
+                "Num_Cluster": number_cluster,
+                "Avg_Cluster": avg_cluster_size,
             }
         )
-        self.interactions = ""  # keep track of each interaction per step
+
+        # store number of bots for each political leaning
+        self.number_cons_bots = number_cons_bots(self)
+        self.number_prog_bots = number_prog_bots(self)
+
+        # keep track of each interaction per step
+        self.interactions = ""
         self.pos = nx.spring_layout(self.G, k=0.3, iterations=20)
 
         # Initialize the grid
@@ -118,9 +203,8 @@ class TikTokEchoChamber(Model):
                 AgentType.HUMAN,
                 State.NEUTRAL,
                 self.positive_chance,
-                self.self_check_frequency,
                 self.politics_change_chance,
-                self.gain_resistance_chance,
+                self.become_neutral_chance,
             )
             idCounter += 1
             # Attach the agent to the node

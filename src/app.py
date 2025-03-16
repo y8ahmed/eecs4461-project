@@ -2,10 +2,12 @@ from matplotlib.figure import Figure
 import solara
 import networkx as nx
 
+from agents import AgentType
 from model import (
     State,
     TikTokEchoChamber,
-    number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions
+    number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions,
+    count_cross_cluster_interactions, number_cluster, cluster_ratio, avg_cluster_size
 )
 from mesa.visualization import (
     Slider,
@@ -13,62 +15,8 @@ from mesa.visualization import (
     make_plot_component
 )
 
-from agents import AgentType
-
-
-def identify_clusters(model):
-
-    conservative_graph = nx.Graph()
-    progressive_graph = nx.Graph()
-    neutral_graph = nx.Graph()
-
-    for node in model.G.nodes():
-        agent = model.grid.get_cell_list_contents([node])[0]
-        if agent.state == State.CONSERVATIVE:
-            conservative_graph.add_node(node)
-        elif agent.state == State.PROGRESSIVE:
-            progressive_graph.add_node(node)
-        elif agent.state == State.NEUTRAL:
-            neutral_graph.add_node(node)
-
-    for edge in model.G.edges():
-        u, v = edge
-        agent_u = model.grid.get_cell_list_contents([u])[0]
-        agent_v = model.grid.get_cell_list_contents([v])[0]
-
-        if agent_u.state == agent_v.state:
-            if agent_u.state == State.CONSERVATIVE:
-                conservative_graph.add_edge(u, v)
-            elif agent_u.state == State.PROGRESSIVE:
-                progressive_graph.add_edge(u, v)
-            elif agent_u.state == State.NEUTRAL:
-                neutral_graph.add_edge(u, v)
-
-    conservative_clusters = list(nx.connected_components(conservative_graph))
-    progressive_clusters = list(nx.connected_components(progressive_graph))
-    neutral_clusters = list(nx.connected_components(neutral_graph))
-
-    all_clusters = conservative_clusters + progressive_clusters + neutral_clusters
-
-    return all_clusters
-
-
-def count_cross_cluster_interactions(model):
-
-    cross_interactions = 0
-    for edge in model.G.edges():
-        u, v = edge
-        agent_u = model.grid.get_cell_list_contents([u])[0]
-        agent_v = model.grid.get_cell_list_contents([v])[0]
-
-        if agent_u.state != agent_v.state:
-            cross_interactions += 1
-
-    return cross_interactions
-
 
 def get_agent_stats(model):
-
     # Get basic state counts
     conservative_count = number_conservative(model)
     progressive_count = number_progressive(model)
@@ -80,8 +28,6 @@ def get_agent_stats(model):
     except ZeroDivisionError:
         np_ratio_text = "∞"
 
-    steps = model.steps
-
     markdown_text = f"""
     ## Agent Statistics
 
@@ -89,36 +35,21 @@ def get_agent_stats(model):
     - Progressive: {progressive_count}
     - Neutral: {neutral_count}
     - Conservative/Progressive Ratio: {np_ratio_text}
-    - Simulation Steps: {steps}
     """
 
     return solara.Markdown(markdown_text)
 
 
 def get_cluster_stats(model):
-
-    # Identify and analyze clusters
-    clusters = identify_clusters(model)
-    num_clusters = len(clusters)
-    total_agents = model.num_nodes
-
-    cluster_ratio = num_clusters / total_agents if total_agents > 0 else 0
-
-    if num_clusters > 0:
-        total_size = sum(len(cluster) for cluster in clusters)
-        avg_cluster_size = total_size / num_clusters
-    else:
-        avg_cluster_size = 0
-
-    cross_interactions = count_cross_cluster_interactions(model)
+    # Get and display cluster stats from model
 
     markdown_text = f"""
     ## Cluster Analysis
 
-    - Number of Clusters: {num_clusters}
-    - Clusters/Agents Ratio: {cluster_ratio:.2f}
-    - Average Cluster Size: {avg_cluster_size:.0f}
-    - Cross-Cluster Interactions: {cross_interactions}
+    - Number of Clusters: {number_cluster(model)}
+    - Clusters/Agents Ratio: {cluster_ratio(model):.2f}
+    - Average Cluster Size: {avg_cluster_size(model):.0f}
+    - Cross-Cluster Interactions: {count_cross_cluster_interactions(model)}
     """
 
     return solara.Markdown(markdown_text)
@@ -155,7 +86,7 @@ model_params = {
         step=1,
     ),
     "num_bots": Slider(
-        label="Number of Bots",
+        label="Num of Bots of Each Leaning",
         value=1,
         min=1,
         max=10,
@@ -163,13 +94,6 @@ model_params = {
     ),
     "positive_chance": Slider(
         label="Probability to Follow",
-        value=0.4,
-        min=0.0,
-        max=1.0,
-        step=0.1,
-    ),
-    "self_check_frequency": Slider(
-        label="Self Check Frequency",
         value=0.4,
         min=0.0,
         max=1.0,
@@ -268,7 +192,6 @@ page = SolaraViz(
         StatePlot,
         StatsRow
     ],
-
     model_params=model_params,
     name="TikTok Echo Chamber Model",
 )
