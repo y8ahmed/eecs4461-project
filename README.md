@@ -13,7 +13,7 @@ EECS4461 W25
 - docs/Deliverable3 - Simple Simulation Prototype
 
 ## Project Description
-The TikTokChamber Model simulates the formation and sustenance of echo chambers     
+The TikTok Echo Chamber Model simulates the formation and sustenance of echo chambers by bot to bot interactions on TikTok. 
 
 ## Run the Project
 Clone the repo
