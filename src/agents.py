@@ -48,9 +48,8 @@ class TikTokAgent(Agent):
             agent_type,
             initial_state,
             positive_chance,
-            self_check_frequency,
             politics_change_chance,
-            gain_resistance_chance,
+            become_neutral_chance,
     ):
         """
         Create a new TikTok agent.
@@ -60,39 +59,27 @@ class TikTokAgent(Agent):
         :param agent_type: Human or Bot agent
         :param initial_state: Whether an agent is Progressive, Conservative or Neutral initially
         :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
-        :param self_check_frequency: How often agents check whether they are infected (0-1)
         :param politics_change_chance: Probability of an infected node to recover (0-1)
-        :param gain_resistance_chance: Probability of a node that has recovered to become resistant (0-1)
+        :param become_neutral_chance: Probability of a node that has recovered to become resistant (0-1)
         """
         super().__init__(model)
         self.id = id
         self.state = initial_state
         self.type = agent_type
         self.positive_chance = positive_chance
-        self.self_check_frequency = self_check_frequency
         self.politics_change_chance = politics_change_chance
-        self.gain_resistance_chance = gain_resistance_chance
+        self.become_neutral_chance = become_neutral_chance
+
+    def get_NO_INTERACTIONS_BOT(self):
+        return NO_INTERACTIONS_BOT
+
+    def get_NO_INTERACTIONS_HUM(self):
+        return NO_INTERACTIONS_HUMAN
 
     def try_gain_neutrality(self):
-        if self.random.random() < self.gain_resistance_chance:
+        if self.random.random() < self.become_neutral_chance:
             self.state = State.NEUTRAL
 
-    def try_remove_infection(self):
-        # Try to change politics from conservative to other
-        if self.random.random() < self.politics_change_chance:
-            # Success
-            self.state = State.PROGRESSIVE
-            self.try_gain_neutrality()
-        else:
-            # Failed
-            self.state = State.CONSERVATIVE
-
-    def try_check_situation(self):
-        if (self.random.random() < self.self_check_frequency) \
-                and (self.state is State.CONSERVATIVE):
-            self.try_remove_infection()
-
-    # TODO greatlove was working below to make interactions
     def get_neighbours(self):
         neighbors_nodes = self.model.grid.get_neighborhood(
             self.pos, include_center=False
@@ -131,7 +118,7 @@ class TikTokAgent(Agent):
                 # change edge colours
                 self.model.G[self.id][agent.id]['weight'] = 1
 
-                self.model.interactions += f"+ Agents {agent.id} and {self.id} followed each other<br>"
+                self.model.interactions += f"+Agent {self.id} followed {agent.id}<br>"
             counter += 1  # keep track of number of interactions so far
 
     def do_negative(self, cap):
@@ -147,7 +134,7 @@ class TikTokAgent(Agent):
                 # remove edges with neighbor
                 self.model.G[self.id][agent.id]['weight'] = 0.1
 
-                self.model.interactions += f"- Agents {agent.id} and {self.id} UNfollowed each other<br>"
+                self.model.interactions += f"-Agent {self.id} UNfollowed {agent.id}<br>"
                 counter += 1
             pass
 
