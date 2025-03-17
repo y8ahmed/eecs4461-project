@@ -3,7 +3,7 @@ import math
 import networkx as nx
 import mesa
 from mesa import Model
-from src.agents import State, TikTokAgent, AgentType
+from agents import State, TikTokAgent, AgentType
 
 
 def number_state(model, state):

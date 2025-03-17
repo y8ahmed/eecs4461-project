@@ -2,8 +2,8 @@ from matplotlib.figure import Figure
 import solara
 import networkx as nx
 
-from src.agents import AgentType
-from src.model import (
+from agents import AgentType
+from model import (
     State,
     TikTokEchoChamber,
     number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions,
