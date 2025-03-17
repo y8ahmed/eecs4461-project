@@ -3,7 +3,7 @@ import math
 import networkx as nx
 import mesa
 from mesa import Model
-from agents import State, TikTokAgent, AgentType
+from src.agents import State, TikTokAgent, AgentType
 
 
 def number_state(model, state):
@@ -127,7 +127,6 @@ class TikTokEchoChamber(Model):
             avg_node_degree=3,
             num_bots=1,
             positive_chance=0.4,
-            politics_change_chance=0.3,
             become_neutral_chance=0.5,
             seed=None,
     ):
@@ -139,7 +138,6 @@ class TikTokEchoChamber(Model):
         :param avg_node_degree: Average number of connections between agents
         :param num_bots: Initial number of infected nodes
         :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
-        :param politics_change_chance: Probability of a non-neutral node to change its politics (0-1)
         :param become_neutral_chance: Probability of a node to become neutral (0-1)
         :param seed: Seed for reproducibility
         """
@@ -152,7 +150,6 @@ class TikTokEchoChamber(Model):
 
         self.num_bots = num_bots if num_bots <= num_nodes else num_nodes
         self.positive_chance = positive_chance
-        self.politics_change_chance = politics_change_chance
         self.become_neutral_chance = become_neutral_chance
 
         self.datacollector = mesa.DataCollector(
@@ -171,7 +168,7 @@ class TikTokEchoChamber(Model):
 
         # keep track of each interaction per step
         self.interactions = ""
-        self.pos = nx.spring_layout(self.G, k=0.3, iterations=20)
+        self.pos = nx.spring_layout(self.G, k=0.3, iterations=20, seed=seed)
 
         # Initialize the grid
 
@@ -188,7 +185,7 @@ class TikTokEchoChamber(Model):
                 self.pos = nx.kamada_kawai_layout(self.G)
             else:
                 # Use spring layout with limited iterations for larger networks
-                self.pos = nx.spring_layout(self.G, k=0.3, iterations=50)
+                self.pos = nx.spring_layout(self.G, k=0.3, iterations=50, seed=seed)
         except:
             # Fallback to basic spring layout with few iterations
             pass
@@ -203,7 +200,6 @@ class TikTokEchoChamber(Model):
                 AgentType.HUMAN,
                 State.NEUTRAL,
                 self.positive_chance,
-                self.politics_change_chance,
                 self.become_neutral_chance,
             )
             idCounter += 1
