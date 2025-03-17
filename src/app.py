@@ -2,8 +2,8 @@ from matplotlib.figure import Figure
 import solara
 import networkx as nx
 
-from agents import AgentType
-from model import (
+from src.agents import AgentType
+from src.model import (
     State,
     TikTokEchoChamber,
     number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions,
@@ -99,8 +99,8 @@ model_params = {
         max=1.0,
         step=0.1,
     ),
-    "politics_change_chance": Slider(
-        label="Politics Change Chance",
+    "become_neutral_chance": Slider(
+        label="Become Neutral Chance",
         value=0.3,
         min=0.0,
         max=1.0,
