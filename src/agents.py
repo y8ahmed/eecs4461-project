@@ -9,6 +9,11 @@ P_POS = 5/7  # probability to do a positive interaction
 P_NEG = 2/7  # probability to do a negative interaction
 
 
+class EdgeWeight(Enum):
+    VISIBLE = 0.5
+    INVISIBLE = 0.1
+
+
 class State(Enum):
     PROGRESSIVE = 0  # SUSCEPTIBLE
     CONSERVATIVE = 1  # INFECTED
@@ -112,8 +117,9 @@ class TikTokAgent(Agent):
             if self.random.random() < self.positive_chance and counter <= cap:
                 agent.state = self.state
 
-                # change edge colours
-                self.model.G[self.id][agent.id]['weight'] = 1
+                # change edge transparency
+                self.model.G[self.id][agent.id]['weight'] = EdgeWeight.VISIBLE
+                # print(f"do_positive G[{self.id}][{agent.id}]['weight'] {self.model.G[self.id][agent.id]['weight']}")
 
                 self.model.interactions += f"+Agent {self.id} followed {agent.id}<br>"
             counter += 1  # keep track of number of interactions so far
@@ -129,7 +135,8 @@ class TikTokAgent(Agent):
                 self.try_gain_neutrality()
 
                 # remove edges with neighbor
-                self.model.G[self.id][agent.id]['weight'] = 0.1
+                self.model.G[self.id][agent.id]['weight'] = EdgeWeight.INVISIBLE
+                # print(f"do_negative G[{self.id}][{agent.id}]['weight'] {self.model.G[self.id][agent.id]['weight']}")
 
                 self.model.interactions += f"-Agent {self.id} UNfollowed {agent.id}<br>"
                 counter += 1
