@@ -2,12 +2,12 @@ from matplotlib.figure import Figure
 import solara
 import networkx as nx
 
-from agents import AgentType
+from agents import AgentType, EdgeWeight
 from model import (
     State,
     TikTokEchoChamber,
     number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions,
-    count_cross_cluster_interactions, number_cluster, cluster_ratio, avg_cluster_size
+    identify_clusters
 )
 from mesa.visualization import (
     Slider,
@@ -42,14 +42,16 @@ def get_agent_stats(model):
 
 def get_cluster_stats(model):
     # Get and display cluster stats from model
+    clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions = identify_clusters(model)
 
     markdown_text = f"""
     ## Cluster Analysis
 
-    - Number of Clusters: {number_cluster(model)}
-    - Clusters/Agents Ratio: {cluster_ratio(model):.2f}
-    - Average Cluster Size: {avg_cluster_size(model):.0f}
-    - Cross-Cluster Interactions: {count_cross_cluster_interactions(model)}
+    - Number of Clusters: {number_cluster}
+    - Clusters/Agents Ratio: {cluster_ratio:.2f}
+    - Average Cluster Size: {avg_cluster_size:.0f}
+    - Cross-Cluster Interactions: {cross_interactions}
+    - Cluster IDs per node: {clusters}
     """
 
     return solara.Markdown(markdown_text)
@@ -75,18 +77,25 @@ model_params = {
         label="Number of agents",
         value=10,
         min=10,
-        max=100,
+        max=50,
         step=1,
     ),
     "avg_node_degree": Slider(
         label="Avg Node Degree",
         value=3,
-        min=3,
-        max=8,
+        min=1,
+        max=5,
         step=1,
     ),
-    "num_bots": Slider(
-        label="Num of Bots of Each Leaning",
+    "num_cons_bots": Slider(
+        label="Num of Conservative Bots",
+        value=1,
+        min=1,
+        max=10,
+        step=1,
+    ),
+    "num_prog_bots": Slider(
+        label="Num of Progressive Bots",
         value=1,
         min=1,
         max=10,
@@ -94,14 +103,14 @@ model_params = {
     ),
     "positive_chance": Slider(
         label="Probability to Follow",
-        value=0.4,
+        value=0.5,
         min=0.0,
         max=1.0,
         step=0.1,
     ),
     "become_neutral_chance": Slider(
         label="Become Neutral Chance",
-        value=0.3,
+        value=0.2,
         min=0.0,
         max=1.0,
         step=0.1,
@@ -122,10 +131,12 @@ def SpacePlot(model):
     # Extract node colors based on agent state
     bot_nodes = []
     hum_nodes = []
+    all_nodes = []
     bot_colors = []
     hum_colors = []
     for agent in model.grid.agents:
         node = agent.id
+        all_nodes.append(node)
         if agent.type == AgentType.BOT:
             if agent.state == State.PROGRESSIVE:
                 bot_nodes.append(node)
@@ -144,19 +155,22 @@ def SpacePlot(model):
                 hum_nodes.append(node)
                 hum_colors.append("gray")
 
-    # Set edge transparency based on political similarity
+    # Set edge transparency and weights based on political similarity
     edge_alphas = []
     for u, v in model.G.edges():
-        edge_alphas.append(0 if model.G[u][v].get('weight') == 0.1 else 0.5)
+        edge_alphas.append(0 if model.G[u][v].get('weight') == EdgeWeight.INVISIBLE else 0.5)
 
     # Create pos for bot nodes and human nodes
     botpos = {k: v for k, v in model.pos.items() if k in bot_nodes}
     humpos = {k: v for k, v in model.pos.items() if k in hum_nodes}
+    allpos = botpos | humpos
 
-    # Draw the network
+    # Draw the networks
     nx.draw_networkx_nodes(model.G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
     nx.draw_networkx_nodes(model.G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
     nx.draw_networkx_edges(model.G, model.pos, edge_color="gray", width=1, alpha=edge_alphas, ax=ax)
+    label_options = {"fc": "white", "alpha": 0.6, "boxstyle": "circle", "linestyle": ""}
+    nx.draw_networkx_labels(model.G, allpos, font_size=8, bbox=label_options, ax=ax)
 
     # Show a note if we're only displaying a subset
     if len(model.G.nodes()) > 50:
@@ -166,7 +180,6 @@ def SpacePlot(model):
 
     ax.legend(loc="best")
     ax.set_axis_off()
-
 
     return solara.FigureMatplotlib(fig)
 
