@@ -51,7 +51,6 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
 
     # the cluster id for each node is initialized to the node's id
     clusters = [node for node in model.G.nodes()]
-    cross_interactions = 0
 
     '''if an edge is visible either way then they are connected'''
     all_visible_edges = [(u, v) for u, v in model.G.edges()
@@ -60,10 +59,10 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
     visible_edges = get_unique_edge_list(all_visible_edges)  # get unique pairs since edges may be dupes eg.(1,3), (3,1)
 
     # try to find connected similar nodes and update their cluster id. note that edges are ordered.
-    # do it twice to ensure earlier nodes are updated
+    #   do it twice to ensure earlier nodes are updated
     for _ in [1, 2]:
+        cross_interactions = 0
         for u, v in visible_edges:
-            # print(f"(u {u} v {v}) ids start (clusters[u] {clusters[u]} clusters[v] {clusters[v]}")
             agent_u = model.grid.get_cell_list_contents([u])[0]
             agent_v = model.grid.get_cell_list_contents([v])[0]
             min_id = min(clusters[u], clusters[v])
@@ -73,13 +72,8 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
                 # make cluster ids the same
                 clusters[u] = min_id
                 clusters[v] = min_id
-                # print(f"(u {u} v {v}) are same and ids updated. clusters[u] {clusters[u]}, clusters[v] {clusters[v]}")
             else:
-                # make new cluster for the dissimilar node and update cluster id
-                node_to_change = u if clusters[u] != min_id else v
-                # clusters[node_to_change] = min_id + 1
-                cross_interactions += 1  # keep count of cross-cluster interactions
-                # print(f"(u {u} v {v}) node_to_change {node_to_change} clusters[node_to_change] {clusters[node_to_change]}  cross_interactions {cross_interactions}")
+                cross_interactions += 1  # update cross-cluster interactions
 
     # prep return values
     unique_clusters = set(clusters)
@@ -89,7 +83,6 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
     sum_size = sum(clusters.count(c) for c in unique_clusters)
     avg_cluster_size = sum_size / number_cluster
 
-    # print(f"clusters {clusters} number_cluster {number_cluster} avg_cluster_size {avg_cluster_size} cluster_ratio {cluster_ratio} cross_interactions {cross_interactions}")
     return clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions
 
 

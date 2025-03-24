@@ -135,7 +135,7 @@ def SpacePlot(model):
     bot_colors = []
     hum_colors = []
     for agent in model.grid.agents:
-        node = agent.id
+        node = agent.id_
         all_nodes.append(node)
         if agent.type == AgentType.BOT:
             if agent.state == State.PROGRESSIVE:
@@ -155,10 +155,12 @@ def SpacePlot(model):
                 hum_nodes.append(node)
                 hum_colors.append("gray")
 
-    # Set edge transparency and weights based on political similarity
+    # Set edge transparency based on political similarity; style based on interaction weight
     edge_alphas = []
+    edge_styles = []
     for u, v in model.G.edges():
         edge_alphas.append(0 if model.G[u][v].get('weight') == EdgeWeight.INVISIBLE else 0.5)
+        edge_styles.append('dashed' if model.G[u][v].get('weight') == EdgeWeight.DASHED else 'solid')
 
     # Create pos for bot nodes and human nodes
     botpos = {k: v for k, v in model.pos.items() if k in bot_nodes}
@@ -168,7 +170,7 @@ def SpacePlot(model):
     # Draw the networks
     nx.draw_networkx_nodes(model.G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
     nx.draw_networkx_nodes(model.G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
-    nx.draw_networkx_edges(model.G, model.pos, edge_color="gray", width=1, alpha=edge_alphas, ax=ax)
+    nx.draw_networkx_edges(model.G, model.pos, edge_color="gray", width=1, alpha=edge_alphas, style=edge_styles, ax=ax)
     label_options = {"fc": "white", "alpha": 0.6, "boxstyle": "circle", "linestyle": ""}
     nx.draw_networkx_labels(model.G, allpos, font_size=8, bbox=label_options, ax=ax)
 
@@ -187,7 +189,7 @@ def StatsRow(model):
     return solara.Row(children=[
         solara.Column(children=[get_agent_stats(model)], style={"width": "30%"}),
         solara.Column(children=[get_cluster_stats(model)], style={"width": "30%"}),
-        solara.Column(children=[get_interactions(model)], style={"width": "40%"})
+        # solara.Column(children=[get_interactions(model)], style={"width": "40%"})
     ], style={"width": "200%"})
 
 
