@@ -78,7 +78,7 @@ class TikTokAgent(Agent):
         :param id_: Agent's unique Identification number
         :param agent_type: Human or Bot agent
         :param initial_state: Whether an agent is Progressive, Conservative or Neutral initially
-        :param positive_chance: Probability of an infected agent to have positive interactions with others (0-1)
+        :param positive_chance: Probability of an agent to have positive interactions with others (0-1)
         :param become_neutral_chance: Probability of a node that has recovered to become resistant (0-1)
         """
         super().__init__(model)

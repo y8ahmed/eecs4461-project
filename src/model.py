@@ -52,7 +52,7 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
     # the cluster id for each node is initialized to the node's id
     clusters = [node for node in model.G.nodes()]
 
-    '''if an edge is visible either way then they are connected'''
+    '''if an edge is not invisible either way then they are connected'''
     all_visible_edges = [(u, v) for u, v in model.G.edges()
                          if model.G[u][v]['weight'] != EdgeWeight.INVISIBLE or
                          model.G[v][u]['weight'] != EdgeWeight.INVISIBLE]
