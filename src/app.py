@@ -44,6 +44,16 @@ def get_cluster_stats(model):
     # Get and display cluster stats from model
     clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions = identify_clusters(model)
 
+    # Transform clusters list into dictionary format
+    cluster_dict = {}
+    for node_idx, cluster_id in enumerate(clusters):
+        if cluster_id not in cluster_dict:
+            cluster_dict[cluster_id] = []
+        cluster_dict[cluster_id].append(node_idx + 1)  # Add 1 to convert to 1-indexed
+
+    # Format cluster dictionary for display
+    cluster_display = "<br />".join(f"{cluster_id}: {node_list}" for cluster_id, node_list in sorted(cluster_dict.items()))
+
     markdown_text = f"""
     ## Cluster Analysis
 
@@ -51,7 +61,9 @@ def get_cluster_stats(model):
     - Clusters/Agents Ratio: {cluster_ratio:.2f}
     - Average Cluster Size: {avg_cluster_size:.0f}
     - Cross-Cluster Interactions: {cross_interactions}
-    - Cluster IDs per node: {clusters}
+    
+    ### Cluster Assignments
+    {cluster_display}
     """
 
     return solara.Markdown(markdown_text)
