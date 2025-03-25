@@ -92,8 +92,11 @@ class TikTokAgent(Agent):
         self.hit_cons = 0
         self.hit_prog = 0
 
+        # Track number of interactions per step (for bots)
+        self.interactions_count = NO_INTERACTIONS_BOT if agent_type is AgentType.BOT else NO_INTERACTIONS_HUMAN
+
     def get_NO_INTERACTIONS_BOT(self):
-        return NO_INTERACTIONS_BOT
+        return self.interactions_count if self.type is AgentType.BOT else NO_INTERACTIONS_BOT
 
     def get_NO_INTERACTIONS_HUM(self):
         return NO_INTERACTIONS_HUMAN
@@ -128,6 +131,15 @@ class TikTokAgent(Agent):
             if (agent.state is self.state) and (agent.type is AgentType.HUMAN)
         ]
         return similar_neighbors
+
+    def get_similar_bot_neighbours(self):
+        neighbors_nodes = self.get_neighbours()
+        similar_bot_neighbors = [
+            agent
+            for agent in self.model.grid.get_cell_list_contents(neighbors_nodes)
+            if (agent.state is self.state) and (agent.type is AgentType.BOT)
+        ]
+        return similar_bot_neighbors
 
     def do_positive(self, cap):
         """Have a positive interaction with dissimilar agents in neighborhood
@@ -186,14 +198,29 @@ class TikTokAgent(Agent):
                 # self.model.interactions += f"-Agent {self.id_} UNfollowed {agent.id_}<br>"
                 counter += 1
 
-    def do_bot(self):
-        # bot strategy for interactions
+    def do_bot_to_bot_interaction(self):
+        """Bot-to-bot interactions with similar political leaning bots"""
+        similar_bot_neighbors = self.get_similar_bot_neighbours()
 
-        # get neighbours
-        # do random positive interactions with <NO_INTERACTIONS_BOT> other human agents
-        self.do_positive(NO_INTERACTIONS_BOT)
+        for bot in similar_bot_neighbors:
+            # Increase interactions count for both bots (up to max of 8)
+            if self.interactions_count < 8:
+                self.interactions_count += 1
+            if bot.interactions_count < 8:
+                bot.interactions_count += 1
+
+            # Update edge weight for visualization
+            self.model.G[self.id_][bot.id_]['weight'] = EdgeWeight.VISIBLE
+
+    def do_bot(self):
+        # Bot strategy for interactions with humans
+        self.do_positive(self.get_NO_INTERACTIONS_BOT())
+
+        # Bot-to-bot interactions
+        self.do_bot_to_bot_interaction()
 
     def do_human(self):
+
         # human strategy for interactions
 
         # do random positive/negative interactions with <NO_INTERACTIONS_HUMAN> other human agents
