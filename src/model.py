@@ -26,6 +26,29 @@ def number_neutral(model):
     return number_state(model, State.NEUTRAL)
 
 
+def avg_cons_bot_reach(model):
+    # get the average reach of all conservative bots
+    reach = 0
+    count = 0
+
+    for agent in model.grid.agents:
+        if agent.type == AgentType.BOT and agent.state == State.CONSERVATIVE:
+            reach += agent.reach
+            count += 1
+    return reach/count
+
+
+def avg_prog_bot_reach(model):
+    # get the average reach of all progressive bots
+    reach = 0
+    count = 0
+    for agent in model.grid.agents:
+        if agent.type == AgentType.BOT and agent.state == State.PROGRESSIVE:
+            reach += agent.reach
+            count += 1
+    return reach/count
+
+
 def get_unique_edge_list(edges):
     unique_edge_list = []
     for u, v in edges:
@@ -152,9 +175,15 @@ class TikTokEchoChamber(Model):
             model_reporters={
                 "Conservative": number_conservative,
                 "Progressive": number_progressive,
-                "Neutral": number_neutral
+                "Neutral": number_neutral,
+                "Avg_Cons_Bot_Reach": avg_cons_bot_reach,
+                "Avg_Prog_Bot_Reach": avg_prog_bot_reach
+            },
+            agent_reporters={
+                "Reach": "reach"
             },
             tables={
+                # TODO derive the cluster size for each political leaning
                 "CA": ["Clusters", "Num_Clusters", "Avg_Cluster_Size", "Clstr_Agent_Ratio", "Cross_Interactions"]
             }
         )
@@ -240,5 +269,6 @@ class TikTokEchoChamber(Model):
                 "Cross_Interactions": cross_interactions
             }
         )
+
         if number_neutral(self) == 0:
             self.running = False

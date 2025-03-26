@@ -150,29 +150,39 @@ def SpacePlot(model):
         node = agent.id_
         all_nodes.append(node)
         if agent.type == AgentType.BOT:
+            bot_nodes.append(node)
             if agent.state == State.PROGRESSIVE:
-                bot_nodes.append(node)
                 bot_colors.append("blue")
             if agent.state == State.CONSERVATIVE:
-                bot_nodes.append(node)
                 bot_colors.append("red")
         if agent.type == AgentType.HUMAN:
+            hum_nodes.append(node)
             if agent.state == State.PROGRESSIVE:
-                hum_nodes.append(node)
                 hum_colors.append("blue")
             if agent.state == State.CONSERVATIVE:
-                hum_nodes.append(node)
                 hum_colors.append("red")
             if agent.state == State.NEUTRAL:
-                hum_nodes.append(node)
                 hum_colors.append("gray")
 
     # Set edge transparency based on political similarity; style based on interaction weight
     edge_alphas = []
     edge_styles = []
+    edge_colors = []
     for u, v in model.G.edges():
         edge_alphas.append(0 if model.G[u][v].get('weight') == EdgeWeight.INVISIBLE else 0.5)
         edge_styles.append('dashed' if model.G[u][v].get('weight') == EdgeWeight.DASHED else 'solid')
+
+        # Set edge color based on source node's state if it's a bot
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.type == agent_v.type == AgentType.BOT:
+            if agent_u.state == agent_v.state == State.PROGRESSIVE:
+                edge_colors.append("blue")
+            else:
+                edge_colors.append("red")
+        else:
+            edge_colors.append("gray")
 
     # Create pos for bot nodes and human nodes
     botpos = {k: v for k, v in model.pos.items() if k in bot_nodes}
@@ -182,7 +192,7 @@ def SpacePlot(model):
     # Draw the networks
     nx.draw_networkx_nodes(model.G, humpos, nodelist=hum_nodes, node_color=hum_colors, node_shape="o", node_size=100, ax=ax, label="Human")
     nx.draw_networkx_nodes(model.G, botpos, nodelist=bot_nodes, node_color=bot_colors, node_shape="x", node_size=100, ax=ax, label="Bot")
-    nx.draw_networkx_edges(model.G, model.pos, edge_color="gray", width=1, alpha=edge_alphas, style=edge_styles, ax=ax)
+    nx.draw_networkx_edges(model.G, model.pos, edge_color=edge_colors, width=1, alpha=edge_alphas, style=edge_styles, ax=ax)
     label_options = {"fc": "white", "alpha": 0.6, "boxstyle": "circle", "linestyle": ""}
     nx.draw_networkx_labels(model.G, allpos, font_size=8, bbox=label_options, ax=ax)
 
@@ -197,10 +207,11 @@ def SpacePlot(model):
 
     return solara.FigureMatplotlib(fig)
 
+
 def StatsRow(model):
     return solara.Row(children=[
         solara.Column(children=[get_agent_stats(model)], style={"width": "30%"}),
-        solara.Column(children=[get_cluster_stats(model)], style={"width": "30%"}),
+        solara.Column(children=[get_cluster_stats(model)]),
         # solara.Column(children=[get_interactions(model)], style={"width": "40%"})
     ], style={"width": "200%"})
 
@@ -210,7 +221,8 @@ StatePlot = make_plot_component(
     post_process=post_process_lineplot,
 )
 
-model1  = TikTokEchoChamber()
+model1 = TikTokEchoChamber()
+
 
 page = SolaraViz(
     model1,
