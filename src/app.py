@@ -150,21 +150,18 @@ def SpacePlot(model):
         node = agent.id_
         all_nodes.append(node)
         if agent.type == AgentType.BOT:
+            bot_nodes.append(node)
             if agent.state == State.PROGRESSIVE:
-                bot_nodes.append(node)
                 bot_colors.append("blue")
             if agent.state == State.CONSERVATIVE:
-                bot_nodes.append(node)
                 bot_colors.append("red")
         if agent.type == AgentType.HUMAN:
+            hum_nodes.append(node)
             if agent.state == State.PROGRESSIVE:
-                hum_nodes.append(node)
                 hum_colors.append("blue")
             if agent.state == State.CONSERVATIVE:
-                hum_nodes.append(node)
                 hum_colors.append("red")
             if agent.state == State.NEUTRAL:
-                hum_nodes.append(node)
                 hum_colors.append("gray")
 
     # Set edge transparency based on political similarity; style based on interaction weight
@@ -176,18 +173,14 @@ def SpacePlot(model):
         edge_styles.append('dashed' if model.G[u][v].get('weight') == EdgeWeight.DASHED else 'solid')
 
         # Set edge color based on source node's state if it's a bot
-        source_agents = model.grid.get_cell_list_contents([u])
-        if source_agents:
-            agent_u = source_agents[0]
-            if agent_u.type == AgentType.BOT:
-                if agent_u.state == State.PROGRESSIVE:
-                    edge_colors.append("blue")
-                elif agent_u.state == State.CONSERVATIVE:
-                    edge_colors.append("red")
-                else:
-                    edge_colors.append("gray")
+        agent_u = model.grid.get_cell_list_contents([u])[0]
+        agent_v = model.grid.get_cell_list_contents([v])[0]
+
+        if agent_u.type == agent_v.type == AgentType.BOT:
+            if agent_u.state == agent_v.state == State.PROGRESSIVE:
+                edge_colors.append("blue")
             else:
-                edge_colors.append("gray")
+                edge_colors.append("red")
         else:
             edge_colors.append("gray")
 
@@ -218,7 +211,7 @@ def SpacePlot(model):
 def StatsRow(model):
     return solara.Row(children=[
         solara.Column(children=[get_agent_stats(model)], style={"width": "30%"}),
-        solara.Column(children=[get_cluster_stats(model)], style={"width": "30%"}),
+        solara.Column(children=[get_cluster_stats(model)]),
         # solara.Column(children=[get_interactions(model)], style={"width": "40%"})
     ], style={"width": "200%"})
 
