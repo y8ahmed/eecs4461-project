@@ -4,13 +4,12 @@ from mesa import Agent
 
 
 # constants for human and bot agent behaviours
-BASE_NO_INTERACTIONS_BOT = 2  # initial number of interactions that bot agents will do per step
-BASE_NO_INTERACTIONS_HUMAN = 1  # initial number of interactions that human agents will do at each step
-MAX_NO_INTERACTIONS = 8  # max number of interactions that agents can do per step
+BASE_REACH_BOT = 2  # initial number of interactions that bot agents will do per step
+BASE_REACH_HUMAN = 1  # initial number of interactions that human agents will do at each step
 P_POS = 5/7  # probability to do a positive interaction
 P_NEG = 2/7  # probability to do a negative interaction
-HIT_REQ = 10  # value of hit before an agent's state is changed
-HIT_NEUTRAL = 2  # value of hit after an agent becomes neutral
+HIT_REQ = 4  # value of hit before an agent's state is changed
+HIT_MID = 2  # value of hit after an agent becomes neutral
 
 
 class EdgeWeight(Enum):
@@ -62,7 +61,7 @@ def choose_neg_interaction():
 
 def increase_reach(agent, amt):
     # Increase agent's reach
-    if agent.reach < MAX_NO_INTERACTIONS:
+    if agent.reach < agent.MAX_REACH:
         agent.reach += amt
 
 
@@ -80,6 +79,7 @@ class TikTokAgent(Agent):
             model,
             agent_type,
             initial_state,
+            max_reach,
             positive_chance,
             become_neutral_chance,
     ):
@@ -90,6 +90,7 @@ class TikTokAgent(Agent):
         :param id_: Agent's unique Identification number
         :param agent_type: Human or Bot agent
         :param initial_state: Whether an agent is Progressive, Conservative or Neutral initially
+        :param max_reach: The max number of interactions that agents can do per step
         :param positive_chance: Probability of an agent to have positive interactions with others (0-1)
         :param become_neutral_chance: Probability of a node that has recovered to become resistant (0-1)
         """
@@ -97,6 +98,7 @@ class TikTokAgent(Agent):
         self.id_ = id_
         self.state = initial_state
         self.type = agent_type
+        self.MAX_REACH = max_reach
         self.positive_chance = positive_chance
         self.become_neutral_chance = become_neutral_chance
 
@@ -105,13 +107,13 @@ class TikTokAgent(Agent):
         self.hit_prog = 0
 
         # set base number of interactions per step (for bots)
-        self.reach = BASE_NO_INTERACTIONS_BOT if agent_type is AgentType.BOT else BASE_NO_INTERACTIONS_HUMAN
+        self.reach = BASE_REACH_BOT if agent_type is AgentType.BOT else BASE_REACH_HUMAN
 
     def try_gain_neutrality(self):
         if self.random.random() < self.become_neutral_chance:
             self.state = State.NEUTRAL
-            self.hit_prog = HIT_NEUTRAL
-            self.hit_cons = HIT_NEUTRAL
+            self.hit_prog = 0
+            self.hit_cons = 0
 
     def get_neighbours(self):
         neighbors_nodes = self.model.grid.get_neighborhood(
@@ -155,6 +157,21 @@ class TikTokAgent(Agent):
         ]
         return similar_bot_neighbors
 
+    def connect(self, agent):
+        agent.state = self.state
+        agent.hit_cons = 0
+        agent.hit_prog = 0
+
+        self.model.G[self.id_][agent.id_]['weight'] = EdgeWeight.VISIBLE
+        # print(f"{self.id_} and {agent.id_} connected")
+
+    def disconnect(self, agent):
+        agent.hit_cons = 0
+        agent.hit_prog = 0
+
+        self.model.G[self.id_][agent.id_]['weight'] = EdgeWeight.INVISIBLE  # remove edges with neighbor
+        # print(f"{self.id_} and {agent.id_} disconnected")
+
     def do_positive(self, cap):
         """Have a positive interaction with dissimilar human agents in neighborhood
 
@@ -172,19 +189,16 @@ class TikTokAgent(Agent):
 
                 # choose what positive interaction to do to neighbor agent
                 #   then try to pass on self state to agent if hit satisfied
-                if self.state == State.CONSERVATIVE and self.hit_cons <= HIT_REQ:
+                if self.state == State.CONSERVATIVE and agent.hit_cons < HIT_REQ + HIT_MID:
                     agent.hit_cons += choose_pos_interaction()
-                elif self.state == State.PROGRESSIVE and self.hit_prog <= HIT_REQ:
+                    if HIT_REQ <= agent.hit_cons <= HIT_REQ + HIT_MID:
+                        self.connect(agent)
+                elif self.state == State.PROGRESSIVE and agent.hit_cons < HIT_REQ + HIT_MID:
                     agent.hit_prog += choose_pos_interaction()
+                    if HIT_REQ <= agent.hit_prog <= HIT_REQ + HIT_MID:
+                        self.connect(agent)
 
-                if agent.hit_cons >= HIT_REQ or agent.hit_prog >= HIT_REQ:
-                    agent.state = self.state
-                    agent.hit_cons = HIT_NEUTRAL
-                    agent.hit_prog = HIT_NEUTRAL
-
-                    increase_reach(agent, 1)  # increase receiving agent's reach
-                    self.model.G[self.id_][agent.id_]['weight'] = EdgeWeight.VISIBLE
-
+                increase_reach(self, 1)  # increase initiating agent's reach
                 # self.model.interactions += f"+Agent {self.id_} followed {agent.id_}<br>"
             counter += 1  # keep track of number of interactions so far
 
@@ -200,35 +214,32 @@ class TikTokAgent(Agent):
 
                 # choose what negative interaction to do to neighbor agent
                 #   then try to become neutral
-                if agent.state == State.CONSERVATIVE and self.hit_cons >= 0:
-                    self.hit_cons += choose_neg_interaction()
-                elif agent.state == State.PROGRESSIVE and self.hit_prog >= 0:
-                    self.hit_prog += choose_neg_interaction()
-
-                if self.hit_prog < HIT_REQ or self.hit_cons < HIT_REQ:
-                    agent.hit_cons = HIT_NEUTRAL
-                    agent.hit_prog = HIT_NEUTRAL
-                    # reduce agent's reach
-                    decrease_reach(agent)
-                    self.model.G[self.id_][agent.id_]['weight'] = EdgeWeight.INVISIBLE  # remove edges with neighbor
-
+                if self.state == State.CONSERVATIVE and agent.hit_cons > 0:
+                    agent.hit_cons += choose_neg_interaction()
+                    if 0 < agent.hit_cons < HIT_MID:
+                        self.disconnect(agent)
+                elif self.state == State.PROGRESSIVE and agent.hit_cons > 0:
+                    agent.hit_prog += choose_neg_interaction()
+                    if 0 < agent.hit_prog < HIT_MID:
+                        self.disconnect(agent)
                 self.try_gain_neutrality()
+                decrease_reach(self)  # reduce self reach
                 # self.model.interactions += f"-Agent {self.id_} UNfollowed {agent.id_}<br>"
                 counter += 1
 
     def do_bot_to_bot_interaction(self):
-        """Do a positive interaction with neighboring bots"""
+        """Do positive interactions with neighboring bots"""
         similar_bot_neighbors = self.get_similar_bot_neighbours()
 
         cap = 0
         for agent in similar_bot_neighbors:
             if cap < self.reach:
-                # Increase reach for receiving bot (up to max of 8)
-                increase_reach(agent, 2)
+                # Increase reach for initiating bot (up to max of 8)
+                increase_reach(self, 3)
 
                 # Update edge weight for visualization
                 self.model.G[self.id_][agent.id_]['weight'] = EdgeWeight.VISIBLE
-                cap += 1
+            cap += 1
 
     def do_bot(self):
         # Bot-to-human interactions strategy

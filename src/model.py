@@ -3,7 +3,7 @@ import math
 import networkx as nx
 import mesa
 from mesa import Model
-from agents import State, TikTokAgent, AgentType, EdgeWeight
+from src.agents import State, TikTokAgent, AgentType, EdgeWeight
 
 
 def number_state(model, state):
@@ -26,13 +26,27 @@ def number_neutral(model):
     return number_state(model, State.NEUTRAL)
 
 
-def avg_cons_bot_reach(model):
+def num_cons_clusters(model):
     # get the average reach of all conservative bots
     reach = 0
     count = 0
 
     for agent in model.grid.agents:
         if agent.type == AgentType.BOT and agent.state == State.CONSERVATIVE:
+            reach += agent.reach
+            count += 1
+    return reach/count
+
+
+def avg_cons_bot_reach(model):
+    # get the average reach of all conservative bots
+    reach = 0
+    count = 0
+    reaches = []
+
+    for agent in model.grid.agents:
+        if agent.type == AgentType.BOT and agent.state == State.CONSERVATIVE:
+            reaches.append(agent.reach)
             reach += agent.reach
             count += 1
     return reach/count
@@ -58,13 +72,17 @@ def get_unique_edge_list(edges):
     return unique_edge_list
 
 
-def identify_clusters(model) -> tuple[list, int, float, float, int]:
+def identify_clusters(model) -> tuple[list, int, float, float, int, int, int, int, int]:
     """Group nodes by similarity and connectedness. Returns a list of:
         [0]: list of cluster ids for each node. 0-indexed.
         [1]: number of clusters
         [2]: avg_cluster_size
         [3]: cluster_ratio
         [4]: cross_interactions
+        [5]: average size of cons. cluster
+        [6]: average size of prog. cluster
+        [7]: number of conservative clusters
+        [8]: number of progressive clusters
     """
 
     # Cluster Definition: a group of nodes:
@@ -104,9 +122,38 @@ def identify_clusters(model) -> tuple[list, int, float, float, int]:
     cluster_ratio = number_cluster / model.num_nodes if model.num_nodes > 0 else 0
 
     sum_size = sum(clusters.count(c) for c in unique_clusters)
-    avg_cluster_size = sum_size / number_cluster
+    avg_cluster_size = round(sum_size / number_cluster)
 
-    return clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions
+    # get each cluster and the nodes in it
+    cluster_dict = {}
+    for node, cluster_id in enumerate(clusters):
+        if cluster_id not in cluster_dict:
+            cluster_dict[cluster_id] = []
+        cluster_dict[cluster_id].append(node)
+
+    # find avg cluster size for each leaning
+    cons_clstr_size = 0
+    cons_count = 0
+    prog_clstr_size = 0
+    prog_count = 0
+    for cluster_id, node_list in cluster_dict.items():
+        if model.grid.get_cell_list_contents([node_list[0]])[0].state == State.CONSERVATIVE:
+            cons_clstr_size += len(node_list)
+            cons_count += 1
+        if model.grid.get_cell_list_contents([node_list[0]])[0].state == State.PROGRESSIVE:
+            prog_clstr_size += len(node_list)
+            prog_count += 1
+
+    cons_clstr_avg_size = cons_clstr_size // cons_count
+    prog_clstr_avg_size = prog_clstr_size // prog_count
+
+    # print(f"cons_clstr_size {cons_clstr_size} ")
+    # print(f"prog_clstr_size {prog_clstr_size} ")
+    # print(f"cons_clstr_avg_size {cons_clstr_avg_size} ")
+    # print(f"prog_clstr_avg_size {prog_clstr_avg_size} ")
+
+    return clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions, \
+        cons_clstr_avg_size, prog_clstr_avg_size, cons_count, prog_count
 
 
 def cons_progressive_ratio(self):
@@ -127,11 +174,11 @@ class TikTokEchoChamber(Model):
     def __init__(
             self,
             num_nodes=10,
-            avg_node_degree=3,
-            num_cons_bots=1,
-            num_prog_bots=1,
-            positive_chance=0.4,
-            become_neutral_chance=0.5,
+            avg_node_degree=5,
+            num_cons_bots=2,
+            num_prog_bots=3,
+            positive_chance=0.8,
+            become_neutral_chance=0.2,
             seed=None,
     ):
         """
@@ -183,18 +230,13 @@ class TikTokEchoChamber(Model):
                 "Reach": "reach"
             },
             tables={
-                # TODO derive the cluster size for each political leaning
-                "CA": ["Clusters", "Num_Clusters", "Avg_Cluster_Size", "Clstr_Agent_Ratio", "Cross_Interactions"]
+                "CA": ["Clusters", "Num_Clusters", "Num_Cons_Clusters", "Num_Prog_Clusters", "Avg_Cluster_Size",
+                       "Clstr_Agent_Ratio", "Cross_Interactions",
+                       "Cons_Avg_Cluster_Size", "Prog_Avg_Cluster_Size"]
             }
         )
 
         # Initialize the grid
-
-        # For larger networks, sample a subset of nodes to visualize
-        if len(self.G.nodes()) > 50:
-            # Sample 50 nodes for visualization
-            nodes_to_visualize = sorted(list(self.G.nodes()))[:50]
-            self.G = self.G.subgraph(nodes_to_visualize)
 
         # Try to use a more efficient layout algorithm
         try:
@@ -213,12 +255,13 @@ class TikTokEchoChamber(Model):
         for node in self.G.nodes():
 
             a = TikTokAgent(
-                idCounter,
-                self,
-                AgentType.HUMAN,
-                State.NEUTRAL,
-                self.positive_chance,
-                self.become_neutral_chance,
+                id_=idCounter,
+                model=self,
+                agent_type=AgentType.HUMAN,
+                initial_state=State.NEUTRAL,
+                max_reach=avg_node_degree,
+                positive_chance=self.positive_chance,
+                become_neutral_chance=self.become_neutral_chance,
             )
             idCounter += 1
             # Attach the agent to the node
@@ -240,35 +283,49 @@ class TikTokEchoChamber(Model):
             self.G[u][v]['weight'] = EdgeWeight.INVISIBLE
 
         self.running = True
-        self.datacollector.collect(self)
-        clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions = identify_clusters(self)
+        clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions, \
+            cons_clstr_avg_size, prog_clstr_avg_size, cons_count, prog_count = identify_clusters(self)
         self.datacollector.add_table_row(
             table_name="CA",
             row={
                 "Clusters": clusters,
                 "Num_Clusters": number_cluster,
+                "Num_Cons_Clusters": cons_count,
+                "Num_Prog_Clusters": prog_count,
                 "Avg_Cluster_Size": avg_cluster_size,
                 "Clstr_Agent_Ratio": cluster_ratio,
-                "Cross_Interactions": cross_interactions
+                "Cross_Interactions": cross_interactions,
+                "Cons_Avg_Cluster_Size": cons_clstr_avg_size,
+                "Prog_Avg_Cluster_Size": prog_clstr_avg_size,
             }
         )
+        self.datacollector.collect(self)
 
     def step(self):
         self.agents.shuffle_do("step")
 
         # collect data
-        self.datacollector.collect(self)
-        clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions = identify_clusters(self)
+        clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions, \
+            cons_clstr_avg_size, prog_clstr_avg_size, cons_count, prog_count = identify_clusters(self)
         self.datacollector.add_table_row(
             table_name="CA",
             row={
                 "Clusters": clusters,
                 "Num_Clusters": number_cluster,
+                "Num_Cons_Clusters": cons_count,
+                "Num_Prog_Clusters": prog_count,
                 "Avg_Cluster_Size": avg_cluster_size,
                 "Clstr_Agent_Ratio": cluster_ratio,
-                "Cross_Interactions": cross_interactions
+                "Cross_Interactions": cross_interactions,
+                "Cons_Avg_Cluster_Size": cons_clstr_avg_size,
+                "Prog_Avg_Cluster_Size": prog_clstr_avg_size
             }
         )
+        self.datacollector.collect(self)
+        # print(clusters)
+        # print(self.datacollector.get_table_dataframe("CA"))
 
         if number_neutral(self) == 0:
             self.running = False
+            self.datacollector.get_table_dataframe("CA").to_csv("CA.csv")
+            self.datacollector.get_model_vars_dataframe().to_csv("model.csv")

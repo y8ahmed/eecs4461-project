@@ -2,8 +2,8 @@ from matplotlib.figure import Figure
 import solara
 import networkx as nx
 
-from agents import AgentType, EdgeWeight
-from model import (
+from src.agents import AgentType, EdgeWeight
+from src.model import (
     State,
     TikTokEchoChamber,
     number_conservative, number_progressive, number_neutral, cons_progressive_ratio, step_interactions,
@@ -42,14 +42,15 @@ def get_agent_stats(model):
 
 def get_cluster_stats(model):
     # Get and display cluster stats from model
-    clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions = identify_clusters(model)
+    clusters, number_cluster, avg_cluster_size, cluster_ratio, cross_interactions, \
+        cons_clstr_avg_size, prog_clstr_avg_size, cons_count, prog_count = identify_clusters(model)
 
     # Transform clusters list into dictionary format
     cluster_dict = {}
     for node_idx, cluster_id in enumerate(clusters):
         if cluster_id not in cluster_dict:
             cluster_dict[cluster_id] = []
-        cluster_dict[cluster_id].append(node_idx + 1)  # Add 1 to convert to 1-indexed
+        cluster_dict[cluster_id].append(node_idx)
 
     # Format cluster dictionary for display
     cluster_display = "<br />".join(f"{cluster_id}: {node_list}" for cluster_id, node_list in sorted(cluster_dict.items()))
@@ -58,9 +59,19 @@ def get_cluster_stats(model):
     ## Cluster Analysis
 
     - Number of Clusters: {number_cluster}
-    - Clusters/Agents Ratio: {cluster_ratio:.2f}
-    - Average Cluster Size: {avg_cluster_size:.0f}
-    - Cross-Cluster Interactions: {cross_interactions}
+    - Clusters/Agents Ratio: {cluster_ratio: .2f}
+    - Average Cluster Size: {avg_cluster_size: .0f}
+    - Cross-Cluster Interactions: {cross_interactions}    
+    
+    ### Conservative
+
+    - Number of Cons. Clusters: {cons_count}
+    - Average Cons. Cluster Size: {cons_clstr_avg_size: .0f}
+    
+    ### Progressive
+
+    - Number of Prog. Clusters: {prog_count}
+    - Average Prog. Cluster Size: {prog_clstr_avg_size: .0f}
     
     ### Cluster Assignments
     {cluster_display}
@@ -89,33 +100,33 @@ model_params = {
         label="Number of agents",
         value=10,
         min=10,
-        max=50,
+        max=100,
         step=1,
     ),
     "avg_node_degree": Slider(
         label="Avg Node Degree",
-        value=3,
+        value=5,
         min=1,
-        max=5,
+        max=30,
         step=1,
     ),
     "num_cons_bots": Slider(
         label="Num of Conservative Bots",
-        value=1,
-        min=1,
-        max=10,
+        value=2,
+        min=2,
+        max=40,
         step=1,
     ),
     "num_prog_bots": Slider(
         label="Num of Progressive Bots",
-        value=1,
-        min=1,
-        max=10,
+        value=2,
+        min=2,
+        max=40,
         step=1,
     ),
     "positive_chance": Slider(
         label="Probability to Follow",
-        value=0.5,
+        value=0.8,
         min=0.0,
         max=1.0,
         step=0.1,
@@ -196,12 +207,6 @@ def SpacePlot(model):
     label_options = {"fc": "white", "alpha": 0.6, "boxstyle": "circle", "linestyle": ""}
     nx.draw_networkx_labels(model.G, allpos, font_size=8, bbox=label_options, ax=ax)
 
-    # Show a note if we're only displaying a subset
-    if len(model.G.nodes()) > 50:
-        ax.set_title(f"TikTok Echo Chamber Network (showing 50/{len(model.G.nodes())} nodes)")
-    else:
-        ax.set_title("TikTok Echo Chamber Network")
-
     ax.legend(loc="best")
     ax.set_axis_off()
 
@@ -212,7 +217,6 @@ def StatsRow(model):
     return solara.Row(children=[
         solara.Column(children=[get_agent_stats(model)], style={"width": "30%"}),
         solara.Column(children=[get_cluster_stats(model)]),
-        # solara.Column(children=[get_interactions(model)], style={"width": "40%"})
     ], style={"width": "200%"})
 
 
