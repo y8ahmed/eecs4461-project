@@ -6,8 +6,11 @@ EECS4461 W25
 - Greatlove BARIBOLOKA
 - Melika SHERAFAT
 
+## Project Description
+The TikTok Echo Chamber Model simulates the formation and sustenance of echo chambers by bot to bot interactions on TikTok.
+
 ## A. Current Implementation State
-Our prototype simulates TikTok bot interactions in a simplified environment. The current implementation includes:
+Our prototype simulates TikTok bot interactions in a sophisticated environment. The current implementation includes:
 - Basic bot interaction simulation
 - Visualization of bot relationships and interactions
 - Simple echo chamber formation tracking
@@ -43,12 +46,7 @@ Our prototype simulates TikTok bot interactions in a simplified environment. The
 3. Open your browser and go to the displayed local URL (typically http://localhost:8765)
 
 ## C. Limitations and Future Improvements
-Current limitations:
-- Simplified bot behavior models
-- Basic interaction mechanics
-- Limited data visualization options
-
-Planned improvements:
+Improvements:
 - Enhanced bot behavior complexity
 - More sophisticated interaction patterns
 - Advanced visualization features
@@ -58,25 +56,5 @@ Planned improvements:
 - docs/Deliverable1 - General Project Idea and Team Expectations
 - docs/Deliverable2 - Project Proposal 
 - docs/Deliverable3 - Simple Simulation Prototype
+- docs/Deliverable4 - Final Prototype and Analysis
 
-## Project Description
-The TikTok Echo Chamber Model simulates the formation and sustenance of echo chambers by bot to bot interactions on TikTok. 
-
-## Run the Project
-Clone the repo
-
-In root eecs4461-project directory, **create a venv** - commands vary per OS so review the linked guides
-- Install [python3.12](https://www.python.org/downloads/release/python-3128/)
-- Install [venv](https://realpython.com/python-virtual-environments-a-primer/)
-
-Go into the src directory
-`cd src`
-
-- Create venv `python -m venv venv`
-- Activate venv `source venv/bin/activate`
-
-Install packages based on requirements.txt
-`pip install -r requirements.txt`
-
-Run solara
-`solara run app.py`
